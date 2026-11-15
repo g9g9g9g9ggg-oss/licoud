@@ -58,6 +58,10 @@ struct MainTabView: View {
             if ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_PROFILE") {
                 selection = 3
             }
+            // UI 测试钩子：进入主框架后立即登出（验证「退出后无法返回内页」的状态语义）
+            if ProcessInfo.processInfo.arguments.contains("UITEST_LOGOUT_AUTO") {
+                session.logout()
+            }
             #endif
         }
     }
