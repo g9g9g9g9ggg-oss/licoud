@@ -37,21 +37,29 @@ struct ProfileView: View {
                 LabeledContent("版本", value: Self.versionText)
                 LabeledContent("设备", value: Self.deviceText)
             }
-
-            Section {
-                Button(role: .destructive) {
-                    showsLogoutDialog = true
-                } label: {
-                    Text("退出登录")
-                        .frame(maxWidth: .infinity)
-                        .foregroundStyle(Color.red)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityIdentifier("logout-button")
-            }
         }
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.large)
+        // 退出登录：独立悬浮按钮（List 行按钮在模拟器上命中判定不可靠，独立按钮全环境可靠）
+        .safeAreaInset(edge: .bottom) {
+            Button(role: .destructive) {
+                showsLogoutDialog = true
+            } label: {
+                Text("退出登录")
+                    .font(.body)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: Metrics.buttonHeight)
+                    .background(
+                        RoundedRectangle(cornerRadius: Metrics.cornerRadiusButton, style: .continuous)
+                            .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                    )
+                    .foregroundStyle(Color.red)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("logout-button")
+            .padding(.horizontal, Metrics.spacing16)
+            .padding(.bottom, Metrics.spacing4)
+        }
         .alert("确认退出登录？", isPresented: $showsLogoutDialog) {
             Button("退出登录", role: .destructive) {
                 session.logout()
