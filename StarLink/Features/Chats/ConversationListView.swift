@@ -1,4 +1,3 @@
-#if DEBUG
 import SwiftData
 import SwiftUI
 import UIKit
@@ -111,4 +110,3 @@ private struct ConversationRow: View {
         .padding(.vertical, Metrics.spacing4)
     }
 }
-#endif
