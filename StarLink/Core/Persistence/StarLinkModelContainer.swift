@@ -1,4 +1,3 @@
-#if DEBUG
 import SwiftData
 
 /// SwiftData 容器（第二期预写；测试用 inMemory）
@@ -16,4 +15,3 @@ enum StarLinkModelContainer {
         }
     }
 }
-#endif
