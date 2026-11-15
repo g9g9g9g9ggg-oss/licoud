@@ -1,38 +1,30 @@
 import SwiftUI
 
 /// 底部四 Tab 主框架（设计书 4.3）：系统 TabView + SF Symbols
-/// Tab 切换动效走系统；选中态由系统着色，不另做 fill 切换
+/// useMockServices=true 时「消息」Tab 显示本地聊天 Demo（免费账号阶段的可演示形态）
 struct MainTabView: View {
     #if DEBUG
     @Environment(SessionStore.self) private var session
-    @Environment(HapticService.self) private var haptic
     #endif
 
     @State private var selection = 0
 
     var body: some View {
         TabView(selection: $selection) {
-            #if DEBUG
-            // 第二期 UI 层预写（附录 B 已批准）：Debug 构建进聊天 Demo，Release 仍为占位页
-            NavigationStack {
-                ConversationListView()
-                    .modelContainer(ChatDemoEngine.shared.container)
+            if AppConfig.useMockServices {
+                NavigationStack {
+                    ConversationListView()
+                        .modelContainer(ChatDemoEngine.shared.container)
+                }
+                .tabItem { Label("消息", systemImage: "message") }
+                .tag(0)
+            } else {
+                NavigationStack {
+                    PlaceholderTabView(title: "消息", systemImage: "message", description: "暂无消息")
+                }
+                .tabItem { Label("消息", systemImage: "message") }
+                .tag(0)
             }
-            .tabItem { Label("消息", systemImage: "message") }
-            .tag(0)
-            .onAppear {
-                ChatDemoEngine.shared.attach(
-                    hapticService: haptic,
-                    myUserID: session.currentUser?.id ?? "1001"
-                )
-            }
-            #else
-            NavigationStack {
-                PlaceholderTabView(title: "消息", systemImage: "message", description: "暂无消息")
-            }
-            .tabItem { Label("消息", systemImage: "message") }
-            .tag(0)
-            #endif
 
             NavigationStack {
                 PlaceholderTabView(title: "客户", systemImage: "person.2", description: "暂无客户")
@@ -54,11 +46,10 @@ struct MainTabView: View {
         }
         .onAppear {
             #if DEBUG
-            // UI 测试钩子：直接落在「我的」Tab，绕开模拟器 Tab 点击不稳定问题
+            // UI 测试钩子：直接落在「我的」Tab / 登录后自动登出（仅 DEBUG）
             if ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_PROFILE") {
                 selection = 3
             }
-            // UI 测试钩子：进入主框架后立即登出（验证「退出后无法返回内页」的状态语义）
             if ProcessInfo.processInfo.arguments.contains("UITEST_LOGOUT_AUTO") {
                 session.logout()
             }
