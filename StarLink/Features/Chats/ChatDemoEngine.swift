@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 import Observation
 import SwiftData
@@ -244,4 +243,3 @@ final class ChatDemoEngine {
         try? context.save()
     }
 }
-#endif
