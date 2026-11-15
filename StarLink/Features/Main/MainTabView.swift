@@ -9,10 +9,11 @@ struct MainTabView: View {
     @Environment(SessionStore.self) private var session
     #endif
 
-    @State private var selection = 0
+    /// Tab 选择走共享路由（工作台「点 = 填入/发送」需要跨 Tab 跳回消息）
+    @State private var router = TabRouter.shared
 
     var body: some View {
-        TabView(selection: $selection) {
+        TabView(selection: Bindable(router).selection) {
             if AppConfig.useMockServices {
                 NavigationStack {
                     ConversationListView()
@@ -33,11 +34,19 @@ struct MainTabView: View {
             .tabItem { Label("客户", systemImage: "person.2") }
             .tag(1)
 
-            NavigationStack {
-                PlaceholderTabView(title: "工作台", systemImage: "square.grid.2x2", description: "功能建设中")
+            if AppConfig.useMockServices {
+                NavigationStack {
+                    WorkbenchView()
+                }
+                .tabItem { Label("工作台", systemImage: "square.grid.2x2") }
+                .tag(2)
+            } else {
+                NavigationStack {
+                    PlaceholderTabView(title: "工作台", systemImage: "square.grid.2x2", description: "功能建设中")
+                }
+                .tabItem { Label("工作台", systemImage: "square.grid.2x2") }
+                .tag(2)
             }
-            .tabItem { Label("工作台", systemImage: "square.grid.2x2") }
-            .tag(2)
 
             NavigationStack {
                 ProfileView()
@@ -50,7 +59,7 @@ struct MainTabView: View {
             #if DEBUG
             // UI 测试钩子：直接落在「我的」Tab / 登录后自动登出（仅 DEBUG）
             if ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_PROFILE") {
-                selection = 3
+                router.selection = 3
             }
             if ProcessInfo.processInfo.arguments.contains("UITEST_LOGOUT_AUTO") {
                 session.logout()

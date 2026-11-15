@@ -43,7 +43,13 @@ final class ChatDemoEngine {
     // MARK: - UI 读取
 
     func conversations() -> [ChatConversation] {
-        uiConversations.sorted { $0.lastMessageAt > $1.lastMessageAt }
+        uiConversations.sorted { pinnedThenTime($0, $1) }
+    }
+
+    /// 置顶优先，其余按最近消息时间倒序
+    private func pinnedThenTime(_ a: ChatConversation, _ b: ChatConversation) -> Bool {
+        if a.isPinned != b.isPinned { return a.isPinned }
+        return a.lastMessageAt > b.lastMessageAt
     }
 
     func messages(for conversationID: String) -> [ChatMessage] {
@@ -203,6 +209,29 @@ final class ChatDemoEngine {
         uiMessages[conversationID] = nil
     }
 
+    /// 置顶 / 取消置顶（本地演示期行为：仅本机生效）
+    func setPinned(_ pinned: Bool, forConversationID conversationID: String) {
+        guard let conversation = storeConversation(withID: conversationID) else { return }
+        conversation.isPinned = pinned
+        save()
+        syncConversationUI(conversation)
+    }
+
+    /// 本地删除单条消息（长按菜单「删除」；演示期仅本机生效）
+    func deleteLocalMessage(_ chatMessage: ChatMessage) {
+        guard let stored = storeMessage(withID: chatMessage.id) else { return }
+        context.delete(stored)
+        save()
+        var list = uiMessages[chatMessage.conversationID] ?? []
+        list.removeAll { $0.id == chatMessage.id }
+        uiMessages[chatMessage.conversationID] = list
+    }
+
+    /// 从存储重新加载 UI 状态（下拉刷新真实化：演示期即重读本地库）
+    func reloadFromStore() {
+        loadUIFromStore()
+    }
+
     /// 联系人一步开聊：按 peerID 找会话，没有则创建
     func findOrCreateConversation(peerID: String, peerName: String) -> ChatConversation {
         if let existing = fetchStoreConversation(peerID: peerID) {
@@ -225,7 +254,8 @@ final class ChatDemoEngine {
             peerName: c.peerName,
             unreadCount: c.unreadCount,
             lastMessageText: c.lastMessageText,
-            lastMessageAt: c.lastMessageAt
+            lastMessageAt: c.lastMessageAt,
+            isPinned: c.isPinned
         )
     }
 
@@ -248,7 +278,7 @@ final class ChatDemoEngine {
         } else {
             uiConversations.append(snapshot)
         }
-        uiConversations.sort { $0.lastMessageAt > $1.lastMessageAt }
+        uiConversations.sort { pinnedThenTime($0, $1) }
     }
 
     private func pushMessageUI(_ message: Message) {

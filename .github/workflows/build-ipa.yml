@@ -3,17 +3,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      config:
-        description: 'Build configuration: Release or Debug'
-        required: false
-        default: 'Release'
-        type: string
-      skip_tests:
-        description: 'Skip simulator tests (dispatch only)'
-        required: false
-        default: 'false'
-        type: string
 
 jobs:
   build:
@@ -28,7 +17,7 @@ jobs:
         run: xcodegen generate
 
       - name: Run unit tests (non-blocking, only on manual dispatch — simulator minutes bill 10x)
-        if: github.event_name == 'workflow_dispatch' && inputs.skip_tests != 'true'
+        if: github.event_name == 'workflow_dispatch'
         continue-on-error: true
         run: |
           set -o pipefail
@@ -48,7 +37,7 @@ jobs:
           xcodebuild archive \
             -project StarLink.xcodeproj \
             -scheme StarLink \
-            -configuration ${{ inputs.config || 'Release' }} \
+            -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath build/StarLink.xcarchive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \

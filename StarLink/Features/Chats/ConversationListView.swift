@@ -9,12 +9,23 @@ enum ChatRoute: Hashable {
 }
 
 /// 消息列表（设计书 6.1 / 任务书第二期）：头像、昵称、预览、时间、未读红点、滑动操作
+/// 打磨包：会话搜索、置顶（contextMenu）、下拉刷新真实化（重读本地库）
 /// 数据源：引擎 @Observable 状态（uiConversations）
 struct ConversationListView: View {
     private let engine = ChatDemoEngine.shared
+    @State private var searchText = ""
+
+    private var filtered: [ChatConversation] {
+        let all = engine.conversations()
+        guard !searchText.isEmpty else { return all }
+        return all.filter {
+            $0.peerName.localizedCaseInsensitiveContains(searchText)
+                || $0.lastMessageText.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
-        let conversations = engine.conversations()
+        let conversations = filtered
         return List {
             ForEach(conversations) { conversation in
                 NavigationLink(value: ChatRoute.conversation(conversation.id)) {
@@ -35,6 +46,16 @@ struct ConversationListView: View {
                         Label("删除", systemImage: "trash")
                     }
                 }
+                .contextMenu {
+                    Button {
+                        engine.setPinned(!conversation.isPinned, forConversationID: conversation.id)
+                    } label: {
+                        Label(
+                            conversation.isPinned ? "取消置顶" : "置顶",
+                            systemImage: conversation.isPinned ? "pin.slash" : "pin"
+                        )
+                    }
+                }
             }
         }
         .listStyle(.plain)
@@ -45,8 +66,9 @@ struct ConversationListView: View {
             }
             .accessibilityLabel("联系人")
         }
-        // TODO(第二期): 接会话历史接口，替换本地种子/缓存刷新
-        .refreshable { try? await Task.sleep(for: .seconds(1)) }
+        .searchable(text: $searchText, prompt: "搜索会话")
+        // 下拉刷新：演示期重读本地库（第二期接会话历史接口）
+        .refreshable { engine.reloadFromStore() }
         .navigationDestination(for: ChatRoute.self) { route in
             switch route {
             case .contacts:
@@ -64,7 +86,10 @@ struct ConversationListView: View {
         }
         .overlay {
             if conversations.isEmpty {
-                ContentUnavailableView("暂无消息", systemImage: "message")
+                ContentUnavailableView(
+                    searchText.isEmpty ? "暂无消息" : "无匹配会话",
+                    systemImage: searchText.isEmpty ? "message" : "magnifyingglass"
+                )
             }
         }
     }
@@ -80,6 +105,14 @@ private struct ConversationRow: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 40, height: 40)
                 .background(Circle().fill(Color(uiColor: .quaternarySystemFill)))
+                .overlay(alignment: .topTrailing) {
+                    if conversation.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Color.starlinkAccent)
+                            .padding(3)
+                    }
+                }
 
             VStack(alignment: .leading, spacing: Metrics.spacing4) {
                 HStack(alignment: .firstTextBaseline) {

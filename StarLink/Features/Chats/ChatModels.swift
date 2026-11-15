@@ -23,6 +23,8 @@ final class Conversation {
     var unreadCount: Int
     var lastMessageText: String
     var lastMessageAt: Date
+    /// 置顶（轻量迁移：新增带默认值属性）
+    var isPinned: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \Message.conversation)
     var messages: [Message] = []
@@ -98,6 +100,7 @@ struct ChatConversation: Identifiable, Equatable {
     var unreadCount: Int
     var lastMessageText: String
     var lastMessageAt: Date
+    var isPinned: Bool = false
 }
 
 /// 视图层消息快照

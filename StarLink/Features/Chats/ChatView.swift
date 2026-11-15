@@ -10,6 +10,8 @@ struct ChatView: View {
 
     @State private var draft = ""
     @State private var viewerMessage: ChatMessage?
+    /// 快捷文字「点 = 填入」的消费入口（工作台跨 Tab 投递）
+    @State private var draftBox = ChatDraftBox.shared
 
     var body: some View {
         Group {
@@ -24,6 +26,14 @@ struct ChatView: View {
         .onAppear {
             engine.activeConversationID = conversationID
             engine.markConversationRead(withID: conversationID)
+            if let pending = draftBox.consumeText() {
+                draft = pending
+            }
+        }
+        .onChange(of: draftBox.pendingText) { _, _ in
+            if let pending = draftBox.consumeText() {
+                draft = pending
+            }
         }
         .onDisappear {
             engine.activeConversationID = nil
@@ -116,7 +126,8 @@ struct ChatView: View {
                 message: message,
                 isOutgoing: message.senderID == engine.myUserID,
                 onRetry: { engine.retryMessage(message) },
-                onOpenImage: { viewerMessage = message }
+                onOpenImage: { viewerMessage = message },
+                onDelete: { engine.deleteLocalMessage(message) }
             )
         }
     }

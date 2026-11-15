@@ -9,6 +9,7 @@ struct ChatBubbleView: View {
     let isOutgoing: Bool
     var onRetry: () -> Void = {}
     var onOpenImage: () -> Void = {}
+    var onDelete: () -> Void = {}
 
     var body: some View {
         HStack(alignment: .bottom, spacing: Metrics.spacing4) {
@@ -20,6 +21,31 @@ struct ChatBubbleView: View {
                 bubble
                 Spacer(minLength: 64)
             }
+        }
+        .contextMenu { contextMenuItems }
+    }
+
+    /// 长按菜单（打磨包）：复制 / 重发（仅失败）/ 删除本地
+    @ViewBuilder
+    private var contextMenuItems: some View {
+        if message.kind == .text {
+            Button {
+                UIPasteboard.general.string = message.text
+            } label: {
+                Label("复制", systemImage: "doc.on.doc")
+            }
+        }
+        if message.state == .failed {
+            Button {
+                onRetry()
+            } label: {
+                Label("重发", systemImage: "arrow.clockwise")
+            }
+        }
+        Button(role: .destructive) {
+            onDelete()
+        } label: {
+            Label("删除", systemImage: "trash")
         }
     }
 

@@ -26,6 +26,7 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        NSPhotoLibraryAddUsageDescription: 保存客服码图片到相册时使用
         CFBundleIcons:
           CFBundlePrimaryIcon:
             CFBundleIconFiles:
