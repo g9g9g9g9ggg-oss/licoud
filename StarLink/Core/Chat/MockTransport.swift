@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 
 /// 本地回环通道（设计书 6.1 MockTransport）：单机自测发送状态机 + 自动回复
@@ -54,4 +53,3 @@ final class MockTransport: MessageTransport {
         }
     }
 }
-#endif
