@@ -32,6 +32,13 @@ final class StarLinkUITests: XCTestCase {
         XCTAssertTrue(myTab.waitForExistence(timeout: 10), "登录后四 Tab 未出现")
     }
 
+    /// Tab 点击统一走坐标（新模拟器上 AX scroll-to-visible 对第 4 个 Tab 不稳定）
+    private func tapTab(_ app: XCUIApplication, _ name: String) {
+        let button = app.tabBars.buttons[name]
+        XCTAssertTrue(button.waitForExistence(timeout: 5), "Tab 缺失: \(name)")
+        button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    }
+
     // MARK: - E2 登录失败提示
 
     func test01LoginFailureShowsInlineError() {
@@ -48,15 +55,13 @@ final class StarLinkUITests: XCTestCase {
         login(app, account: "TEST_1001", password: "123456")
         assertLoggedIn(app)
 
-        // 四 Tab 依次切换
+        // 四 Tab 依次切换（坐标点击）
         for tab in ["消息", "客户", "工作台", "我的"] {
-            let button = app.tabBars.buttons[tab]
-            XCTAssertTrue(button.exists, "Tab 缺失: \(tab)")
-            button.tap()
+            tapTab(app, tab)
         }
 
         // Debug 构建的聊天 Demo：种子会话可见
-        app.tabBars.buttons["消息"].tap()
+        tapTab(app, "消息")
         let seed = app.staticTexts["TEST_张三"]
         XCTAssertTrue(seed.waitForExistence(timeout: 5), "聊天 Demo 种子会话未显示")
     }
@@ -81,7 +86,7 @@ final class StarLinkUITests: XCTestCase {
         login(app, account: "TEST_1001", password: "123456")
         assertLoggedIn(app)
 
-        app.tabBars.buttons["我的"].tap()
+        app.tabBars.buttons["我的"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         let logoutRow = app.buttons["退出登录"]
         XCTAssertTrue(logoutRow.waitForExistence(timeout: 5), "退出登录入口未出现")
         logoutRow.tap()
