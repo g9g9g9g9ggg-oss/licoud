@@ -44,7 +44,9 @@ struct ProfileView: View {
                 } label: {
                     Text("退出登录")
                         .frame(maxWidth: .infinity)
+                        .foregroundStyle(Color.red)
                 }
+                .buttonStyle(.borderless)
                 .accessibilityIdentifier("logout-button")
             }
         }
