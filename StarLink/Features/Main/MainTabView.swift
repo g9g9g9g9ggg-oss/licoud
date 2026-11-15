@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// 底部四 Tab 主框架（设计书 4.3）：系统 TabView + SF Symbols
 /// useMockServices=true 时「消息」Tab 显示本地聊天 Demo（免费账号阶段的可演示形态）
