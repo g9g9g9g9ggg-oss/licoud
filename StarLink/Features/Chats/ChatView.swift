@@ -1,4 +1,3 @@
-#if DEBUG
 import SwiftData
 import SwiftUI
 import UIKit
@@ -216,4 +215,3 @@ private struct ImageViewerView: View {
             }
     }
 }
-#endif
