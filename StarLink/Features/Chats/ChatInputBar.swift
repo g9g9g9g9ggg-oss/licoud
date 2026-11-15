@@ -1,4 +1,3 @@
-#if DEBUG
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -55,4 +54,3 @@ struct ChatInputBar: View {
         .background(.regularMaterial)
     }
 }
-#endif
