@@ -2,7 +2,7 @@ import Foundation
 import SwiftData
 
 // 第二期预写（附录 B 已批准范围变更）：本地消息模型
-// 说明：全部包在 #if DEBUG，Release 正式构建不含预写代码；第二期开工后去条件编译直接启用
+// SwiftData 仅作持久化底层；视图层读引擎的 @Observable 状态（uiConversations/uiMessages）
 
 enum MessageKind: String, Codable {
     case text
@@ -14,6 +14,7 @@ enum MessageState: String, Codable {
     case sending, sent, failed, read
 }
 
+/// 持久化模型：会话
 @Model
 final class Conversation {
     @Attribute(.unique) var id: String
@@ -43,9 +44,10 @@ final class Conversation {
     }
 }
 
+/// 持久化模型：消息
 @Model
 final class Message {
-    /// 客户端消息 ID（UUID），状态回执按此关联；服务端若无此字段走变更申请
+    /// 客户端消息 ID（UUID），状态回执按此关联
     @Attribute(.unique) var id: String
     var conversationID: String
     var senderID: String
@@ -53,7 +55,7 @@ final class Message {
     var text: String
     var stateRaw: String
     var sentAt: Date
-    /// 图片消息载荷（第二期预写，本地闭环；上传链路接通后为远端 URL 的本地缓存）
+    /// 图片消息载荷（本地闭环；上传链路接通后为远端 URL 的本地缓存）
     @Attribute(.externalStorage) var imageData: Data?
     var conversation: Conversation?
 
@@ -86,6 +88,27 @@ final class Message {
         self.sentAt = sentAt
         self.imageData = imageData
     }
+}
+
+/// 视图层会话快照（纯值类型，由引擎 @Observable 状态驱动刷新）
+struct ChatConversation: Identifiable, Equatable {
+    let id: String
+    let peerID: String
+    var peerName: String
+    var unreadCount: Int
+    var lastMessageText: String
+    var lastMessageAt: Date
+}
+
+/// 视图层消息快照
+struct ChatMessage: Identifiable, Equatable {
+    let id: String
+    let senderID: String
+    let kind: MessageKind
+    let text: String
+    var state: MessageState
+    let sentAt: Date
+    var imageData: Data?
 }
 
 /// 会话时间展示（任务书 0.3 质感：今天 HH:mm / 昨天 / 更早 M/d）
