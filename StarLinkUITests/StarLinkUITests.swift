@@ -89,24 +89,20 @@ final class StarLinkUITests: XCTestCase {
         login(app, account: "TEST_1001", password: "123456")
         assertLoggedIn(app)
 
-        // 已直接落在「我的」页，找退出入口（屏幕装不下时滑动）
-        let logoutRow = app.buttons["logout-button"]
-        var appeared = logoutRow.waitForExistence(timeout: 5)
+        // 按叶节点文字定位（List 行 Button 的 hittable 判定不可靠）
+        let logoutText = app.staticTexts["退出登录"]
+        var appeared = logoutText.waitForExistence(timeout: 5)
         for _ in 0 ..< 2 where !appeared {
             app.swipeUp()
-            appeared = logoutRow.waitForExistence(timeout: 2)
+            appeared = logoutText.waitForExistence(timeout: 2)
         }
         XCTAssertTrue(appeared, "退出登录入口未出现（已滑动查找）")
         guard appeared else { return }
-        // List 行按钮的 hittable 判定不稳定，统一走坐标点击
-        logoutRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        logoutText.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
-        // confirmationDialog 桥接后不保留 identifier，按文字在 sheets/alerts 里找
-        var confirm = app.sheets.buttons["退出登录"].firstMatch
-        if !confirm.waitForExistence(timeout: 3) {
-            confirm = app.alerts.buttons["退出登录"].firstMatch
-        }
-        XCTAssertTrue(confirm.waitForExistence(timeout: 3), "退出确认弹窗未出现")
+        // 系统 Alert 桥接可靠
+        let confirm = app.alerts.buttons["退出登录"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "退出确认弹窗未出现")
         confirm.tap()
 
         let loginButton = app.buttons["登录"]
