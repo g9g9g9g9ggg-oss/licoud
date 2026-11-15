@@ -45,13 +45,26 @@ targets:
         GENERATE_INFOPLIST_FILE: "YES"
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/StarLink.app/StarLink
         BUNDLE_LOADER: $(TEST_HOST)
+  StarLinkUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - StarLinkUITests
+    dependencies:
+      - target: StarLink
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: StarLink
 schemes:
   StarLink:
     build:
       targets:
         StarLink: all
         StarLinkTests: [test]
+        StarLinkUITests: [test]
     test:
       gatherCoverageData: false
       targets:
         - StarLinkTests
+        - StarLinkUITests
