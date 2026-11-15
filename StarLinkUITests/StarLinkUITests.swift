@@ -30,6 +30,9 @@ final class StarLinkUITests: XCTestCase {
     private func assertLoggedIn(_ app: XCUIApplication) {
         let myTab = app.tabBars.buttons["我的"]
         XCTAssertTrue(myTab.waitForExistence(timeout: 10), "登录后四 Tab 未出现")
+        // 模拟器怪癖：登录后键盘可能残留悬浮，点导航栏收起（否则下半屏全部 not hittable）
+        let nav = app.navigationBars.firstMatch
+        if nav.exists { nav.tap() }
     }
 
     /// Tab 点击统一走坐标（新模拟器上 AX scroll-to-visible 对第 4 个 Tab 不稳定）
