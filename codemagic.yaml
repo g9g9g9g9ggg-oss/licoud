@@ -1,0 +1,31 @@
+# Codemagic 备用编译通道（GitHub Actions 免费额度耗尽期间使用）
+# 用法：codemagic.io 用 GitHub 账号注册 → Add application → 选本仓库 → 选 workflow ios-build → Start build
+# 产物：StarLink-unsigned.ipa（未签名，与 Actions 产物同构）→ 下载后走原体检/重签流程
+# 免费档：500 macOS 分钟/月，每月 1 日重置；单轮 build 约 10-15 分钟
+workflows:
+  ios-build:
+    name: StarLink unsigned IPA
+    max_build_duration: 60
+    environment:
+      xcode: latest
+    scripts:
+      - name: Install xcodegen
+        script: brew install xcodegen
+      - name: Generate Xcode project
+        script: xcodegen generate
+      - name: Build unsigned IPA
+        script: |
+          xcodebuild archive \
+            -project StarLink.xcodeproj \
+            -scheme StarLink \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/StarLink.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+          mkdir -p build/Payload
+          cp -R "build/StarLink.xcarchive/Products/Applications/StarLink.app" build/Payload/
+          cd build && zip -qry StarLink-unsigned.ipa Payload
+          mv StarLink-unsigned.ipa "$CM_BUILD_DIR/StarLink-unsigned.ipa"
+    artifacts:
+      - StarLink-unsigned.ipa
