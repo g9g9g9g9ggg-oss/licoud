@@ -113,7 +113,8 @@ final class ChatDemoEngine {
         }
     }
 
-    private func handleIncoming(_ incoming: IncomingMessage) {
+    /// 通道回调入口（测试可见：单测直接投喂 IncomingMessage 验证未读/预览逻辑）
+    func handleIncoming(_ incoming: IncomingMessage) {
         guard let conversation = conversation(withID: incoming.conversationID) else { return }
         let senderID = incoming.senderID.isEmpty ? conversation.peerID : incoming.senderID
         let message = Message(
