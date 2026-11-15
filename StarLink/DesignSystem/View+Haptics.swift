@@ -9,7 +9,7 @@ extension View {
             case .messageReceived: .impact(weight: .light)
             case .sendSuccess:     .impact(weight: .medium)
             case .toggleChanged:   .selection
-            case .warning:         .notification(.warning)
+            case .warning:         SensoryFeedback.warning
             }
         }
     }
