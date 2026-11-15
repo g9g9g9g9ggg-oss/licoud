@@ -98,7 +98,8 @@ final class StarLinkUITests: XCTestCase {
         }
         XCTAssertTrue(appeared, "退出登录入口未出现（已滑动查找）")
         guard appeared else { return }
-        logoutRow.tap()
+        // List 行按钮的 hittable 判定不稳定，统一走坐标点击
+        logoutRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
         let confirm = app.buttons["logout-confirm"]
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "退出确认弹窗未出现")
