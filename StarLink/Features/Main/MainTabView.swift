@@ -8,8 +8,10 @@ struct MainTabView: View {
     @Environment(HapticService.self) private var haptic
     #endif
 
+    @State private var selection = 0
+
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             #if DEBUG
             // 第二期 UI 层预写（附录 B 已批准）：Debug 构建进聊天 Demo，Release 仍为占位页
             NavigationStack {
@@ -17,6 +19,7 @@ struct MainTabView: View {
                     .modelContainer(ChatDemoEngine.shared.container)
             }
             .tabItem { Label("消息", systemImage: "message") }
+            .tag(0)
             .onAppear {
                 ChatDemoEngine.shared.attach(
                     hapticService: haptic,
@@ -28,22 +31,34 @@ struct MainTabView: View {
                 PlaceholderTabView(title: "消息", systemImage: "message", description: "暂无消息")
             }
             .tabItem { Label("消息", systemImage: "message") }
+            .tag(0)
             #endif
 
             NavigationStack {
                 PlaceholderTabView(title: "客户", systemImage: "person.2", description: "暂无客户")
             }
             .tabItem { Label("客户", systemImage: "person.2") }
+            .tag(1)
 
             NavigationStack {
                 PlaceholderTabView(title: "工作台", systemImage: "square.grid.2x2", description: "功能建设中")
             }
             .tabItem { Label("工作台", systemImage: "square.grid.2x2") }
+            .tag(2)
 
             NavigationStack {
                 ProfileView()
             }
             .tabItem { Label("我的", systemImage: "person.crop.circle") }
+            .tag(3)
+        }
+        .onAppear {
+            #if DEBUG
+            // UI 测试钩子：直接落在「我的」Tab，绕开模拟器 Tab 点击不稳定问题
+            if ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_PROFILE") {
+                selection = 3
+            }
+            #endif
         }
     }
 }
