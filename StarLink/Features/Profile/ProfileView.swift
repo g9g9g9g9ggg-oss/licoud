@@ -50,7 +50,7 @@ struct ProfileView: View {
         }
         .navigationTitle("我的")
         .navigationBarTitleDisplayMode(.large)
-        .confirmationDialog("确认退出登录？", isPresented: $showsLogoutDialog, titleVisibility: .visible) {
+        .alert("确认退出登录？", isPresented: $showsLogoutDialog) {
             Button("退出登录", role: .destructive) {
                 session.logout()
             }
