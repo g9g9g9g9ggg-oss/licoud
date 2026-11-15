@@ -1,4 +1,3 @@
-#if DEBUG
 import UIKit
 
 /// 图片压缩（设计书 6.1 参数：最长边 1280 / JPEG 0.8）
@@ -25,4 +24,3 @@ enum ImageResizer {
         return resized.jpegData(compressionQuality: quality)
     }
 }
-#endif
