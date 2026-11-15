@@ -89,16 +89,16 @@ final class StarLinkUITests: XCTestCase {
         login(app, account: "TEST_1001", password: "123456")
         assertLoggedIn(app)
 
-        // 按叶节点文字定位（List 行 Button 的 hittable 判定不可靠）
-        let logoutText = app.staticTexts["退出登录"]
-        var appeared = logoutText.waitForExistence(timeout: 5)
+        // 按精确 identifier 定位（List 行按钮已用 borderless 样式修复 hittable）
+        let logoutButton = app.buttons["logout-button"]
+        var appeared = logoutButton.waitForExistence(timeout: 5)
         for _ in 0 ..< 2 where !appeared {
             app.swipeUp()
-            appeared = logoutText.waitForExistence(timeout: 2)
+            appeared = logoutButton.waitForExistence(timeout: 2)
         }
         XCTAssertTrue(appeared, "退出登录入口未出现（已滑动查找）")
         guard appeared else { return }
-        logoutText.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        logoutButton.tap()
 
         // 系统 Alert 桥接可靠
         let confirm = app.alerts.buttons["退出登录"]
