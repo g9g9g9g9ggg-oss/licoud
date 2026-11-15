@@ -45,6 +45,7 @@ struct ProfileView: View {
                     Text("退出登录")
                         .frame(maxWidth: .infinity)
                 }
+                .accessibilityIdentifier("logout-button")
             }
         }
         .navigationTitle("我的")
@@ -53,6 +54,7 @@ struct ProfileView: View {
             Button("退出登录", role: .destructive) {
                 session.logout()
             }
+            .accessibilityIdentifier("logout-confirm")
             Button("取消", role: .cancel) {}
         }
     }
