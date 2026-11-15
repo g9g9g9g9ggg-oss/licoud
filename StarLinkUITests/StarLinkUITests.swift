@@ -92,15 +92,9 @@ final class StarLinkUITests: XCTestCase {
         login(app, account: "TEST_1001", password: "123456")
         assertLoggedIn(app)
 
-        // 按精确 identifier 定位（List 行按钮已用 borderless 样式修复 hittable）
+        // 已直接落在「我的」页；退出按钮为独立悬浮按钮（不在 List 内），无需滑动
         let logoutButton = app.buttons["logout-button"]
-        var appeared = logoutButton.waitForExistence(timeout: 5)
-        for _ in 0 ..< 2 where !appeared {
-            app.swipeUp()
-            appeared = logoutButton.waitForExistence(timeout: 2)
-        }
-        XCTAssertTrue(appeared, "退出登录入口未出现（已滑动查找）")
-        guard appeared else { return }
+        XCTAssertTrue(logoutButton.waitForExistence(timeout: 5), "退出登录入口未出现")
         logoutButton.tap()
 
         // 系统 Alert 桥接可靠
