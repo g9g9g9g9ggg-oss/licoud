@@ -1,8 +1,8 @@
 #if DEBUG
-import SwiftData
 import XCTest
 @testable import StarLink
 
+/// 引擎测试：断言目标是引擎的 @Observable UI 状态（uiConversations / uiMessages）
 @MainActor
 final class ChatDemoEngineTests: XCTestCase {
     private func makeEngine(repliesEnabled: Bool = false) -> ChatDemoEngine {
@@ -17,50 +17,39 @@ final class ChatDemoEngineTests: XCTestCase {
         )
     }
 
-    private func conversations(of engine: ChatDemoEngine) -> [Conversation] {
-        (try? engine.container.mainContext.fetch(FetchDescriptor<Conversation>())) ?? []
-    }
-
-    private func messages(of engine: ChatDemoEngine, text: String) -> [Message] {
-        (try? engine.container.mainContext.fetch(
-            FetchDescriptor<Message>(predicate: #Predicate { $0.text == text })
-        )) ?? []
-    }
-
     func testSeedCreatesTwoConversationsWithUnread() {
         let engine = makeEngine()
-        let list = conversations(of: engine)
+        let list = engine.conversations()
         XCTAssertEqual(list.count, 2)
         XCTAssertTrue(list.contains { $0.unreadCount > 0 }, "种子数据应包含未读会话")
+        XCTAssertEqual(engine.messages(for: "conv-1002").count, 3, "张三种子应含 3 条消息")
+        XCTAssertEqual(engine.messages(for: "conv-1003").count, 2, "李四种子应含 2 条消息")
     }
 
     func testSendMessageAdvancesToReadAndUpdatesPreview() async throws {
         let engine = makeEngine()
-        let conversation = conversations(of: engine).first { $0.id == "conv-1002" }!
 
-        await engine.sendMessage("你好，在吗", in: conversation)
+        await engine.sendMessage("你好，在吗", in: "conv-1002")
         try await Task.sleep(for: .milliseconds(400))
 
-        let sent = messages(of: engine, text: "你好，在吗")
-        XCTAssertEqual(sent.count, 1)
-        XCTAssertEqual(sent.first?.state, .read, "回执链 sending→sent→read 应走完")
-        XCTAssertEqual(conversations(of: engine).first { $0.id == "conv-1002" }?.lastMessageText, "你好，在吗")
+        let list = engine.messages(for: "conv-1002")
+        let sent = list.last { $0.text == "你好，在吗" }
+        XCTAssertEqual(sent?.state, .read, "回执链 sending→sent→read 应走完")
+        XCTAssertEqual(engine.conversation("conv-1002")?.lastMessageText, "你好，在吗")
     }
 
     func testFailTagMarksMessageFailed() async {
         let engine = makeEngine()
-        let conversation = conversations(of: engine).first { $0.id == "conv-1002" }!
 
-        await engine.sendMessage("这单 #fail 了", in: conversation)
+        await engine.sendMessage("这单 #fail 了", in: "conv-1002")
 
-        let failed = messages(of: engine, text: "这单 #fail 了")
-        XCTAssertEqual(failed.count, 1)
-        XCTAssertEqual(failed.first?.state, .failed)
+        let failed = engine.messages(for: "conv-1002").last { $0.text == "这单 #fail 了" }
+        XCTAssertEqual(failed?.state, .failed)
     }
 
     func testIncomingBumpsUnreadAndPreview() {
         let engine = makeEngine()
-        let before = conversations(of: engine).first { $0.id == "conv-1002" }!.unreadCount
+        let before = engine.conversation("conv-1002")!.unreadCount
 
         engine.handleIncoming(IncomingMessage(
             conversationID: "conv-1002",
@@ -70,15 +59,16 @@ final class ChatDemoEngineTests: XCTestCase {
             sentAt: Date()
         ))
 
-        let after = conversations(of: engine).first { $0.id == "conv-1002" }!
+        let after = engine.conversation("conv-1002")!
         XCTAssertEqual(after.unreadCount, before + 1)
         XCTAssertEqual(after.lastMessageText, "资料发你了")
+        XCTAssertEqual(engine.messages(for: "conv-1002").last?.text, "资料发你了")
     }
 
     func testIncomingToActiveConversationDoesNotBumpUnread() {
         let engine = makeEngine()
         engine.activeConversationID = "conv-1002"
-        let before = conversations(of: engine).first { $0.id == "conv-1002" }!.unreadCount
+        let before = engine.conversation("conv-1002")!.unreadCount
 
         engine.handleIncoming(IncomingMessage(
             conversationID: "conv-1002",
@@ -88,16 +78,16 @@ final class ChatDemoEngineTests: XCTestCase {
             sentAt: Date()
         ))
 
-        XCTAssertEqual(conversations(of: engine).first { $0.id == "conv-1002" }?.unreadCount, before)
+        XCTAssertEqual(engine.conversation("conv-1002")?.unreadCount, before)
     }
 
     func testMarkConversationReadClearsUnread() {
         let engine = makeEngine()
-        XCTAssertEqual(conversations(of: engine).first { $0.id == "conv-1003" }?.unreadCount, 2)
+        XCTAssertEqual(engine.conversation("conv-1003")?.unreadCount, 2)
 
         engine.markConversationRead(withID: "conv-1003")
 
-        XCTAssertEqual(conversations(of: engine).first { $0.id == "conv-1003" }?.unreadCount, 0)
+        XCTAssertEqual(engine.conversation("conv-1003")?.unreadCount, 0)
     }
 
     func testFindOrCreateConversationIsIdempotent() {
@@ -107,7 +97,15 @@ final class ChatDemoEngineTests: XCTestCase {
 
         let second = engine.findOrCreateConversation(peerID: "1004", peerName: "TEST_王五")
         XCTAssertEqual(first.id, second.id, "重复调用不应新建会话")
-        XCTAssertEqual(conversations(of: engine).count, 3)
+        XCTAssertEqual(engine.conversations().count, 3)
+    }
+
+    func testDeleteConversationRemovesFromUI() {
+        let engine = makeEngine()
+        engine.deleteConversation("conv-1003")
+        XCTAssertNil(engine.conversation("conv-1003"))
+        XCTAssertEqual(engine.conversations().count, 1)
+        XCTAssertEqual(engine.messages(for: "conv-1003").count, 0)
     }
 }
 #endif
