@@ -11,7 +11,9 @@ final class SessionStoreTests: XCTestCase {
     }
 
     private func makeStore() -> SessionStore {
-        SessionStore(loginService: MockLoginService(), keychain: keychain)
+        let store = SessionStore(loginService: MockLoginService(), keychain: keychain)
+        store.restore()   // 对齐真实启动路径：得到 loggedOut 基线
+        return store
     }
 
     func testRestoreWithoutTokenIsLoggedOut() {
