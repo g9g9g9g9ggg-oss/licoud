@@ -262,6 +262,7 @@ final class ChatDemoEngine {
     private func uiMessage(from m: Message) -> ChatMessage {
         ChatMessage(
             id: m.id,
+            conversationID: m.conversationID,
             senderID: m.senderID,
             kind: m.kind,
             text: m.text,

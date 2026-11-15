@@ -161,7 +161,7 @@ struct WorkbenchView: View {
         case .edit:
             showsBindPicker = true
         case .toggleDisable:
-            guard let content = store.qrSlots.first(where: { $0.id == slotID }) else { return }
+            guard let content = store.qrSlots.first(where: { $0.id == slotID })?.content else { return }
             confirmAction = ConfirmAction(
                 title: content.isDisabled ? "启用客服码" : "停用客服码",
                 message: content.isDisabled ? "启用后扫码将重新接入客服。" : "停用后扫码将提示客服不在线，可随时启用。",

@@ -106,6 +106,7 @@ struct ChatConversation: Identifiable, Equatable {
 /// 视图层消息快照
 struct ChatMessage: Identifiable, Equatable {
     let id: String
+    let conversationID: String
     let senderID: String
     let kind: MessageKind
     let text: String

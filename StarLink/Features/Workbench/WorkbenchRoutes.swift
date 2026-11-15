@@ -194,6 +194,8 @@ struct IntentDetailView: View {
                 Toggle("启用图片回复", isOn: $imageEnabled)
                 if imageEnabled {
                     ForEach(store.libraryImages) { image in
+                        let isSelected = imageNames.contains(image.name)
+                        let selectable = isSelected || imageNames.count < ImageReply.maxImages
                         HStack(spacing: Metrics.spacing8) {
                             if let uiImage = UIImage(data: image.imageData) {
                                 Image(uiImage: uiImage)
@@ -204,8 +206,6 @@ struct IntentDetailView: View {
                             }
                             Text(image.name).font(.subheadline)
                             Spacer()
-                            let isSelected = imageNames.contains(image.name)
-                            let selectable = isSelected || imageNames.count < ImageReply.maxImages
                             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(isSelected ? Color.starlinkAccent : Color(uiColor: .systemGray4))
                                 .onTapGesture {
