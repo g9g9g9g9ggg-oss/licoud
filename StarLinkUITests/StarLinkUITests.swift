@@ -82,19 +82,17 @@ final class StarLinkUITests: XCTestCase {
     // MARK: - E5 退出后无法返回内页
 
     func test04LogoutCannotReturn() {
-        let app = launch()
+        // UITEST_OPEN_PROFILE：启动即落在「我的」Tab（模拟器第 4 个 Tab 点击不稳定，绕开）
+        let app = XCUIApplication()
+        app.launchArguments.append(contentsOf: ["UITEST_FRESH", "UITEST_OPEN_PROFILE"])
+        app.launch()
         login(app, account: "TEST_1001", password: "123456")
         assertLoggedIn(app)
 
-        // 我的 Tab：TabBar 坐标直点（第 4 个 Tab 的 AX 点击不稳定）
-        let tabBar = app.tabBars.firstMatch
-        XCTAssertTrue(tabBar.waitForExistence(timeout: 5))
-        tabBar.coordinate(withNormalizedOffset: CGVector(dx: 0.875, dy: 0.5)).tap()
-
-        // 退出登录（按 identifier 精确查找），屏幕装不下时滑动
+        // 已直接落在「我的」页，找退出入口（屏幕装不下时滑动）
         let logoutRow = app.buttons["logout-button"]
-        var appeared = logoutRow.waitForExistence(timeout: 3)
-        for _ in 0 ..< 3 where !appeared {
+        var appeared = logoutRow.waitForExistence(timeout: 5)
+        for _ in 0 ..< 2 where !appeared {
             app.swipeUp()
             appeared = logoutRow.waitForExistence(timeout: 2)
         }
@@ -108,6 +106,6 @@ final class StarLinkUITests: XCTestCase {
 
         let loginButton = app.buttons["登录"]
         XCTAssertTrue(loginButton.waitForExistence(timeout: 8), "退出后未回到登录页")
-        XCTAssertFalse(app.tabBars.buttons["我的"].exists, "退出后不应还能看到内页 Tab")
+        XCTAssertFalse(app.tabBars.firstMatch.exists, "退出后不应还能看到内页 Tab")
     }
 }
