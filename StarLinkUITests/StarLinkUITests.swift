@@ -101,8 +101,12 @@ final class StarLinkUITests: XCTestCase {
         // List 行按钮的 hittable 判定不稳定，统一走坐标点击
         logoutRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
-        let confirm = app.buttons["logout-confirm"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "退出确认弹窗未出现")
+        // confirmationDialog 桥接后不保留 identifier，按文字在 sheets/alerts 里找
+        var confirm = app.sheets.buttons["退出登录"].firstMatch
+        if !confirm.waitForExistence(timeout: 3) {
+            confirm = app.alerts.buttons["退出登录"].firstMatch
+        }
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3), "退出确认弹窗未出现")
         confirm.tap()
 
         let loginButton = app.buttons["登录"]
