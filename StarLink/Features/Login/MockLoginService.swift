@@ -1,8 +1,8 @@
 import Foundation
 
-#if DEBUG
-/// 本地 mock（设计书 5.2）：仅 DEBUG 编译进包；800ms 延迟模拟真实网络手感
-/// 账号规则见 README-MAC.md 的 Mock 账号表
+/// 本地 mock 登录服务（设计书 5.2）
+/// 说明：为让免费账号阶段的 Release 真机包可用，mock 不再限定 DEBUG；
+/// 接入真实后台时将 AppConfig.useMockServices 置 false，并恢复 DEBUG 门控。
 struct MockLoginService: LoginServicing {
     func login(request: LoginRequest) async throws -> LoginResponse {
         try await Task.sleep(for: .milliseconds(800))
@@ -25,4 +25,3 @@ struct MockLoginService: LoginServicing {
         )
     }
 }
-#endif
