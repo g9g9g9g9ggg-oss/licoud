@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 import SwiftData
 
@@ -117,4 +116,3 @@ enum ChatTimeFormatter {
         return dateFormatter.string(from: date)
     }
 }
-#endif
