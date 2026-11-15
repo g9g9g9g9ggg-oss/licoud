@@ -1,0 +1,54 @@
+name: build-ipa
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Run unit tests (non-blocking)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project StarLink.xcodeproj \
+            -scheme StarLink \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            2>&1 | tee test-output.log
+
+      - name: Build unsigned IPA
+        run: |
+          xcodebuild archive \
+            -project StarLink.xcodeproj \
+            -scheme StarLink \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/StarLink.xcarchive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+          mkdir -p build/Payload
+          cp -R "build/StarLink.xcarchive/Products/Applications/StarLink.app" build/Payload/
+          cd build && zip -qry StarLink-unsigned.ipa Payload
+
+      - name: Upload test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: test-output.log
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarLink-unsigned-ipa
+          path: build/StarLink-unsigned.ipa
