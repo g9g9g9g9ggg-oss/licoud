@@ -50,4 +50,9 @@ final class SessionStore {
         keychain.deleteAll()
         state = .loggedOut
     }
+
+    /// UI 测试专用：清空持久化登录态（仅 DEBUG 构建可达）
+    func clearPersistedForUITest() {
+        keychain.deleteAll()
+    }
 }
