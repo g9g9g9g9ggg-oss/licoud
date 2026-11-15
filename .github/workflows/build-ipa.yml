@@ -21,10 +21,15 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          UDID=$(xcrun simctl list devices available | grep -m1 'iPhone' | grep -oE '[0-9A-F]{8}-([0-9A-F]{4}-){3}[0-9A-F]{12}')
+          if [ -z "$UDID" ]; then echo "NO-IPHONE-SIM available:"; xcrun simctl list devices available; exit 1; fi
+          echo "Using simulator UDID: $UDID (Xcode: $XC)"
           xcodebuild test \
             -project StarLink.xcodeproj \
             -scheme StarLink \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "platform=iOS Simulator,id=$UDID" \
             2>&1 | tee test-output.log
 
       - name: Build unsigned IPA
