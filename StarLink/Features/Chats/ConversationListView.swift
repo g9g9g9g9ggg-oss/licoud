@@ -1,4 +1,3 @@
-import SwiftData
 import SwiftUI
 import UIKit
 
@@ -10,14 +9,13 @@ enum ChatRoute: Hashable {
 }
 
 /// 消息列表（设计书 6.1 / 任务书第二期）：头像、昵称、预览、时间、未读红点、滑动操作
+/// 数据源：引擎 @Observable 状态（uiConversations）
 struct ConversationListView: View {
-    @Query(sort: [SortDescriptor(\Conversation.lastMessageAt, order: .reverse)])
-    private var conversations: [Conversation]
-
     private let engine = ChatDemoEngine.shared
 
     var body: some View {
-        List {
+        let conversations = engine.conversations()
+        return List {
             ForEach(conversations) { conversation in
                 NavigationLink(value: ChatRoute.conversation(conversation.id)) {
                     ConversationRow(conversation: conversation)
@@ -32,7 +30,7 @@ struct ConversationListView: View {
                         .tint(.blue)
                     }
                     Button(role: .destructive) {
-                        engine.deleteConversation(conversation)
+                        engine.deleteConversation(conversation.id)
                     } label: {
                         Label("删除", systemImage: "trash")
                     }
@@ -73,7 +71,7 @@ struct ConversationListView: View {
 }
 
 private struct ConversationRow: View {
-    let conversation: Conversation
+    let conversation: ChatConversation
 
     var body: some View {
         HStack(spacing: Metrics.spacing12) {
