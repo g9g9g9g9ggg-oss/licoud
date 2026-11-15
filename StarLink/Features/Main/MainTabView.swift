@@ -61,6 +61,12 @@ struct MainTabView: View {
             if ProcessInfo.processInfo.arguments.contains("UITEST_OPEN_PROFILE") {
                 router.selection = 3
             }
+            // UI 测试钩子：UITEST_OPEN_TAB_<n> 直接落在第 n 个 Tab（0=消息 2=工作台…）
+            for arg in ProcessInfo.processInfo.arguments where arg.hasPrefix("UITEST_OPEN_TAB_") {
+                if let tab = Int(arg.dropFirst("UITEST_OPEN_TAB_".count)), (0..<4).contains(tab) {
+                    router.selection = tab
+                }
+            }
             if ProcessInfo.processInfo.arguments.contains("UITEST_LOGOUT_AUTO") {
                 session.logout()
             }
