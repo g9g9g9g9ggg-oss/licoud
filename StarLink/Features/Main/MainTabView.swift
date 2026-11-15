@@ -55,6 +55,16 @@ struct MainTabView: View {
             if ProcessInfo.processInfo.arguments.contains("UITEST_LOGOUT_AUTO") {
                 session.logout()
             }
+            // UI 测试钩子：启动后自动向首个会话发一条消息（真机免触验证 @Observable 实时刷新）
+            if ProcessInfo.processInfo.arguments.contains("UITEST_AUTOSEND") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    guard let conv = ChatDemoEngine.shared.conversations().first else { return }
+                    await ChatDemoEngine.shared.sendMessage(
+                        "UITEST_AUTOSEND-\(Int(Date().timeIntervalSince1970))", in: conv.id
+                    )
+                }
+            }
             #endif
         }
     }
