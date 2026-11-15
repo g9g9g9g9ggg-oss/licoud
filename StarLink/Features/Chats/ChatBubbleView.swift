@@ -3,8 +3,9 @@ import UIKit
 
 /// 气泡（设计书 6.1）：圆角 18、留白走档位、无渐变
 /// 尾巴以差异化圆角近似系统 Messages 比例，第二期验收时对照录屏微调
+/// 数据源：引擎快照 ChatMessage（纯值类型）
 struct ChatBubbleView: View {
-    let message: Message
+    let message: ChatMessage
     let isOutgoing: Bool
     var onRetry: () -> Void = {}
     var onOpenImage: () -> Void = {}
