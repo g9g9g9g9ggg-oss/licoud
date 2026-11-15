@@ -1,4 +1,3 @@
-#if DEBUG
 import SwiftUI
 import UIKit
 
@@ -73,4 +72,3 @@ private struct ContactRow: View {
         .padding(.vertical, Metrics.spacing4)
     }
 }
-#endif
