@@ -1,35 +1,25 @@
-import SwiftData
 import SwiftUI
 import UIKit
 
 /// 聊天窗口（设计书 6.1）：气泡流 + 时间分隔 + 底部输入栏（safeAreaInset）
+/// 数据源：引擎 @Observable 状态（uiMessages）—— SwiftData 仅在引擎内部作持久化
 /// 历史加载留桩：TODO(第二期) 顶部滚动翻页接历史接口
 struct ChatView: View {
     let conversationID: String
     private let engine = ChatDemoEngine.shared
 
-    @Query private var messages: [Message]
     @State private var draft = ""
-    @State private var viewerMessage: Message?
-
-    init(conversationID: String) {
-        self.conversationID = conversationID
-        let id = conversationID
-        _messages = Query(
-            filter: #Predicate<Message> { $0.conversationID == id },
-            sort: [SortDescriptor(\Message.sentAt)]
-        )
-    }
+    @State private var viewerMessage: ChatMessage?
 
     var body: some View {
         Group {
-            if let conversation = engine.conversation(withID: conversationID) {
-                chatBody(conversation)
+            if engine.conversation(conversationID) != nil {
+                chatBody
             } else {
                 ContentUnavailableView("会话不存在", systemImage: "message.badge.exclamationmark")
             }
         }
-        .navigationTitle(engine.conversation(withID: conversationID)?.peerName ?? "TEST")
+        .navigationTitle(engine.conversation(conversationID)?.peerName ?? "TEST")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             engine.activeConversationID = conversationID
@@ -40,11 +30,12 @@ struct ChatView: View {
         }
     }
 
-    private func chatBody(_ conversation: Conversation) -> some View {
-        ScrollViewReader { proxy in
+    private var chatBody: some View {
+        let messages = engine.messages(for: conversationID)
+        return ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: Metrics.spacing4) {
-                    ForEach(rows) { row in
+                    ForEach(rows(from: messages)) { row in
                         rowView(row)
                     }
                 }
@@ -61,10 +52,10 @@ struct ChatView: View {
                         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !text.isEmpty else { return }
                         draft = ""
-                        Task { await engine.sendMessage(text, in: conversation) }
+                        Task { await engine.sendMessage(text, in: conversationID) }
                     },
                     onPickImage: { data in
-                        Task { await engine.sendImage(rawData: data, in: conversation) }
+                        Task { await engine.sendImage(rawData: data, in: conversationID) }
                     }
                 )
             }
@@ -86,7 +77,7 @@ struct ChatView: View {
 
     private enum ChatRow: Identifiable {
         case time(Date)
-        case message(Message)
+        case message(ChatMessage)
 
         var id: String {
             switch self {
@@ -96,9 +87,9 @@ struct ChatView: View {
         }
     }
 
-    private var rows: [ChatRow] {
+    private func rows(from messages: [ChatMessage]) -> [ChatRow] {
         var result: [ChatRow] = []
-        var previous: Message?
+        var previous: ChatMessage?
         for message in messages {
             if let previous, message.sentAt.timeIntervalSince(previous.sentAt) > 600 {
                 result.append(.time(message.sentAt))
@@ -132,7 +123,7 @@ struct ChatView: View {
 }
 
 /// 大图查看（设计书 6.1）：fullScreenCover + 弹簧缩放拟系统照片转场
-/// 拖拽下滑关闭、双击 1x/2x、捏合缩放 1–4x；最低 iOS 17 下无原生 zoom 转场，升 iOS 18 可换 .navigationTransition(.zoom)
+/// 拖拽下滑关闭、双击 1x/2x、捏合缩放 1–4x
 private struct ImageViewerView: View {
     let data: Data?
     var onClose: () -> Void
