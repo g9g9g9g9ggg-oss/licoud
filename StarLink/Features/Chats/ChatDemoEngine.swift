@@ -6,6 +6,7 @@ import SwiftData
 // 架构说明：UI 层数据源为本类的 @Observable 状态（uiConversations / uiMessages），
 // SwiftData 仅作持久化底层——规避 @Query 在部分 iOS 版本真机上推送视图不刷新的问题。
 
+@Observable
 @MainActor
 final class ChatDemoEngine {
     static let shared = ChatDemoEngine()
