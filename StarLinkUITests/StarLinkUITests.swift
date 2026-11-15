@@ -87,8 +87,16 @@ final class StarLinkUITests: XCTestCase {
         assertLoggedIn(app)
 
         app.tabBars.buttons["我的"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+
+        // 退出登录在 List 底部，屏幕装不下时需滑动查找
         let logoutRow = app.buttons["退出登录"]
-        XCTAssertTrue(logoutRow.waitForExistence(timeout: 5), "退出登录入口未出现")
+        var appeared = logoutRow.waitForExistence(timeout: 3)
+        for _ in 0 ..< 3 where !appeared {
+            app.swipeUp()
+            appeared = logoutRow.waitForExistence(timeout: 2)
+        }
+        XCTAssertTrue(appeared, "退出登录入口未出现（已滑动查找）")
+        guard appeared else { return }
         logoutRow.tap()
 
         let confirm = app.sheets.buttons["退出登录"].firstMatch
