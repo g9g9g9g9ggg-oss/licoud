@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 底部四 Tab 主框架（设计书 4.3）：系统 TabView + SF Symbols
 /// useMockServices=true 时「消息」Tab 显示本地聊天 Demo（免费账号阶段的可演示形态）
+/// modelContainer 挂在 TabView 层（覆盖所有推送视图；视图层读引擎 @Observable 状态）
 struct MainTabView: View {
     #if DEBUG
     @Environment(SessionStore.self) private var session
@@ -14,7 +15,6 @@ struct MainTabView: View {
             if AppConfig.useMockServices {
                 NavigationStack {
                     ConversationListView()
-                        .modelContainer(ChatDemoEngine.shared.container)
                 }
                 .tabItem { Label("消息", systemImage: "message") }
                 .tag(0)
@@ -44,6 +44,7 @@ struct MainTabView: View {
             .tabItem { Label("我的", systemImage: "person.crop.circle") }
             .tag(3)
         }
+        .modelContainer(ChatDemoEngine.shared.container)
         .onAppear {
             #if DEBUG
             // UI 测试钩子：直接落在「我的」Tab / 登录后自动登出（仅 DEBUG）
