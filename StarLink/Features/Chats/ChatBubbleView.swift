@@ -1,4 +1,3 @@
-#if DEBUG
 import SwiftUI
 import UIKit
 
@@ -111,4 +110,3 @@ struct RoundedCorner: Shape {
         ).cgPath)
     }
 }
-#endif
