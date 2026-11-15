@@ -1,4 +1,3 @@
-#if DEBUG
 import Foundation
 
 /// 通道侧送达的新消息
@@ -24,4 +23,3 @@ protocol MessageTransport: AnyObject {
 
     func send(clientMsgID: String, conversationID: String, text: String) async throws
 }
-#endif
