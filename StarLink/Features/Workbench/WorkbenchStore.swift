@@ -201,6 +201,23 @@ final class WorkbenchStore {
         persist()
     }
 
+    /// 更换新码：新分发链接 + 续期 12h + 清停用（旧链接立即失效）
+    func regenerateCode(id: String) {
+        guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
+        let token = UUID().uuidString.prefix(8).lowercased()
+        codes[index].url = "https://pool.starlink.demo/c/\(token)"
+        codes[index].expiresAt = Date().addingTimeInterval(12 * 3600)
+        codes[index].isDisabled = false
+        persist()
+    }
+
+    /// 停用 / 启用入口
+    func setCodeDisabled(id: String, disabled: Bool) {
+        guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
+        codes[index].isDisabled = disabled
+        persist()
+    }
+
     /// 删除 → 锁定期 7 天（不放回余量；锁定期结束自动消失）
     func lockCode(id: String) {
         guard let index = codes.firstIndex(where: { $0.id == id }) else { return }

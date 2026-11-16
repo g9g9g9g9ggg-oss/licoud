@@ -29,9 +29,9 @@ struct MainTabView: View {
             }
 
             NavigationStack {
-                PlaceholderTabView(title: "客户", systemImage: "person.2", description: "暂无客户")
+                PlaceholderTabView(title: "AI", systemImage: "sparkles", description: "预留接口 · 暂未开放")
             }
-            .tabItem { Label("客户", systemImage: "person.2") }
+            .tabItem { Label("AI", systemImage: "sparkles") }
             .tag(1)
 
             if AppConfig.useMockServices {

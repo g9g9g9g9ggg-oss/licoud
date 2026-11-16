@@ -186,6 +186,7 @@ struct PoolCode: Codable, Identifiable, Equatable {
     var expiresAt: Date
     var state: PoolCodeState
     var lockedUntil: Date?             // 删除 → 锁定期 7 天
+    var isDisabled: Bool = false       // 停用入口（扫码提示客服不在线）
 
     /// 展示用底部文字
     var displayBottomText: String {

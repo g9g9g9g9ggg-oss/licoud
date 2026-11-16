@@ -9,9 +9,10 @@ enum MessageKind: String, Codable {
     case image  // TODO(第二期联调): 图片上传接入后启用
 }
 
-/// 发送状态机（设计书 6.1）：sending → sent → read；failed 可重发回到 sending
+/// 发送状态机（设计书 6.1）：sending → sent → read；failed 可重发回到 sending；
+/// recalled = 已撤回（气泡渲染为灰色系统条）
 enum MessageState: String, Codable {
-    case sending, sent, failed, read
+    case sending, sent, failed, read, recalled
 }
 
 /// 持久化模型：会话
@@ -59,6 +60,9 @@ final class Message {
     var sentAt: Date
     /// 图片消息载荷（本地闭环；上传链路接通后为远端 URL 的本地缓存）
     @Attribute(.externalStorage) var imageData: Data?
+    /// 引用：被引用消息的文字摘要 / 图片载荷（精准命中被引用的图片本体）
+    var quotedText: String?
+    @Attribute(.externalStorage) var quotedImageData: Data?
     var conversation: Conversation?
 
     var kind: MessageKind {
@@ -79,7 +83,9 @@ final class Message {
         text: String,
         state: MessageState,
         sentAt: Date,
-        imageData: Data? = nil
+        imageData: Data? = nil,
+        quotedText: String? = nil,
+        quotedImageData: Data? = nil
     ) {
         self.id = id
         self.conversationID = conversationID
@@ -89,6 +95,8 @@ final class Message {
         self.stateRaw = state.rawValue
         self.sentAt = sentAt
         self.imageData = imageData
+        self.quotedText = quotedText
+        self.quotedImageData = quotedImageData
     }
 }
 
@@ -113,6 +121,15 @@ struct ChatMessage: Identifiable, Equatable {
     var state: MessageState
     let sentAt: Date
     var imageData: Data?
+    /// 引用块（发送时带上；nil = 无引用）
+    var quotedText: String?
+    var quotedImageData: Data?
+
+    /// 引用摘要行（引用条/气泡内引用块共用）
+    var quoteSummary: String {
+        if quotedImageData != nil { return "[图片]" }
+        return quotedText ?? ""
+    }
 }
 
 /// 会话时间展示（任务书 0.3 质感：今天 HH:mm / 昨天 / 更早 M/d）

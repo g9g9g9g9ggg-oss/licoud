@@ -4,8 +4,6 @@ import UIKit
 /// 消息 Tab 内路由
 enum ChatRoute: Hashable {
     case conversation(String)
-    case chat(Contact)   // 联系人一步开聊：push 时确保会话存在
-    case contacts
 }
 
 /// 消息列表（设计书 6.1 / 任务书第二期）：头像、昵称、预览、时间、未读红点、滑动操作
@@ -60,28 +58,13 @@ struct ConversationListView: View {
         }
         .listStyle(.plain)
         .navigationTitle("消息")
-        .toolbar {
-            NavigationLink(value: ChatRoute.contacts) {
-                Image(systemName: "person.crop.circle.badge.plus")
-            }
-            .accessibilityLabel("联系人")
-        }
         .searchable(text: $searchText, prompt: "搜索会话")
         // 下拉刷新：演示期重读本地库（第二期接会话历史接口）
         .refreshable { engine.reloadFromStore() }
         .navigationDestination(for: ChatRoute.self) { route in
             switch route {
-            case .contacts:
-                ContactsView()
             case .conversation(let id):
                 ChatView(conversationID: id)
-            case .chat(let contact):
-                ChatView(
-                    conversationID: engine.findOrCreateConversation(
-                        peerID: contact.id,
-                        peerName: contact.name
-                    ).id
-                )
             }
         }
         .overlay {

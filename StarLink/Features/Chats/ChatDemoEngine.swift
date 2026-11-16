@@ -62,7 +62,7 @@ final class ChatDemoEngine {
 
     // MARK: - 发送
 
-    func sendMessage(_ text: String, in conversationID: String) async {
+    func sendMessage(_ text: String, in conversationID: String, quote: ChatMessage? = nil) async {
         guard let conversation = storeConversation(withID: conversationID) else { return }
         let message = Message(
             id: UUID().uuidString,
@@ -71,7 +71,9 @@ final class ChatDemoEngine {
             kind: .text,
             text: text,
             state: .sending,
-            sentAt: Date()
+            sentAt: Date(),
+            quotedText: quote?.quoteSummary,
+            quotedImageData: quote?.imageData
         )
         performStoreInsert(message, in: conversation)
         pushMessageUI(message)
@@ -227,6 +229,15 @@ final class ChatDemoEngine {
         uiMessages[chatMessage.conversationID] = list
     }
 
+    /// 撤回自己的消息：状态置 recalled（气泡渲染为灰色系统条），本地演示即时生效
+    func recallMessage(_ chatMessage: ChatMessage) {
+        guard chatMessage.senderID == myUserID,
+              let stored = storeMessage(withID: chatMessage.id) else { return }
+        stored.state = .recalled
+        save()
+        updateMessageUI(stored)
+    }
+
     /// 从存储重新加载 UI 状态（下拉刷新真实化：演示期即重读本地库）
     func reloadFromStore() {
         loadUIFromStore()
@@ -268,7 +279,9 @@ final class ChatDemoEngine {
             text: m.text,
             state: m.state,
             sentAt: m.sentAt,
-            imageData: m.imageData
+            imageData: m.imageData,
+            quotedText: m.quotedText,
+            quotedImageData: m.quotedImageData
         )
     }
 

@@ -7,6 +7,7 @@ struct ChatInputBar: View {
     @Binding var draft: String
     var onSend: () -> Void
     var onPickImage: (Data) -> Void = { _ in }
+    var onPlus: () -> Void = {}
 
     @State private var photoSelection: PhotosPickerItem?
 
@@ -40,6 +41,14 @@ struct ChatInputBar: View {
                     RoundedRectangle(cornerRadius: Metrics.cornerRadiusCard, style: .continuous)
                         .fill(Color(uiColor: .secondarySystemBackground))
                 )
+
+            // ➕（像微信一样）：快捷文字 / 快捷图片 / 关键词回复 / 欢迎语
+            Button(action: onPlus) {
+                Image(systemName: "plus.circle")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityLabel("更多功能")
 
             Button(action: onSend) {
                 Image(systemName: "arrow.up.circle.fill")
