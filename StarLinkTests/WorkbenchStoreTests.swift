@@ -2,7 +2,7 @@
 import XCTest
 @testable import StarLink
 
-/// 工作台 Mock 存储打磨包测试：持久化回路 / 客服码 CRUD / 快捷栏 / 意图 / 会话置顶排序
+/// 码池存储测试：领取扣余量 / 删除进锁定期 / 统计 / 延长 / 编辑 / 持久化回路 / 快捷栏 / 意图 / 置顶排序
 @MainActor
 final class WorkbenchStoreTests: XCTestCase {
 
@@ -26,11 +26,11 @@ final class WorkbenchStoreTests: XCTestCase {
 
     // MARK: - 种子与持久化
 
-    func testSeedPopulatesAllModules() {
+    func testSeedStartsWithEmptyPool() {
         let store = makeStore()
+        XCTAssertTrue(store.codes.isEmpty, "空池开局（机主参考图 1）")
+        XCTAssertEqual(store.poolRemaining, 660)
         XCTAssertFalse(store.welcomeText.isEmpty)
-        XCTAssertEqual(store.qrSlots.count, 2)
-        XCTAssertEqual(store.qrSlots.map(\.id), ["online", "offline"])
         XCTAssertFalse(store.quickTexts.isEmpty)
         XCTAssertFalse(store.libraryImages.isEmpty)
         XCTAssertFalse(store.quickImages.isEmpty)
@@ -40,29 +40,57 @@ final class WorkbenchStoreTests: XCTestCase {
     func testPersistRoundtrip() {
         let store = makeStore()
         store.updateWelcome(text: "自定义欢迎语", enabled: false)
+        _ = store.claimCode(remark: "阿萨", style: .baiyuJinsha, badgeMode: .show, bottomText: "", logoMode: .brand)
         let reloaded = makeStore()
         XCTAssertEqual(reloaded.welcomeText, "自定义欢迎语")
         XCTAssertFalse(reloaded.welcomeEnabled)
+        XCTAssertEqual(reloaded.codes.count, 1)
+        XCTAssertEqual(reloaded.codes.first?.remark, "阿萨")
     }
 
-    // MARK: - 客服码
+    // MARK: - 码池领取 / 统计 / 锁定期
 
-    func testProduceCodeRefreshesURLAndExpiry() {
+    func testClaimDecrementsPoolAndIncrementsActive() {
         let store = makeStore()
-        let oldURL = store.qrSlots[0].content?.url
-        store.produceCode(slotID: "online")
-        let newContent = store.qrSlots[0].content
-        XCTAssertNotEqual(newContent?.url, oldURL)
-        XCTAssertTrue(newContent?.url.contains("/online/") ?? false)
-        XCTAssertTrue(newContent!.expiresAt > Date())
+        let before = store.poolRemaining
+        let code = store.claimCode(remark: "地方g", style: .molvJinyu, badgeMode: .show, bottomText: "扫码咨询", logoMode: .brand)
+        XCTAssertNotNil(code)
+        XCTAssertEqual(store.poolRemaining, before - 1)
+        XCTAssertEqual(store.activeCodes.count, 1)
+        XCTAssertEqual(store.codes.first?.remark, "地方g")
+        XCTAssertEqual(store.codes.first?.style, .molvJinyu)
+        XCTAssertEqual(store.codes.first?.displayBottomText, "扫码咨询")
     }
 
-    func testToggleDisableAndDeleteCode() {
+    func testLockCodeMovesToLockedState() {
         let store = makeStore()
-        store.updateSlotContent(slotID: "offline") { $0.isDisabled.toggle() }
-        XCTAssertEqual(store.qrSlots[1].content?.isDisabled, true)
-        store.deleteCode(slotID: "offline")
-        XCTAssertNil(store.qrSlots[1].content)
+        let code = store.claimCode(remark: "曼斯", style: .mojinCatEye, badgeMode: .hidden, bottomText: "扫码咨询", logoMode: .none)
+        XCTAssertNotNil(code)
+        store.lockCode(id: code!.id)
+        XCTAssertEqual(store.lockedCodes.count, 1)
+        XCTAssertEqual(store.activeCodes.count, 0)
+        XCTAssertNotNil(store.codes[0].lockedUntil)
+    }
+
+    func testExtendCodeAfterExpiry() {
+        let store = makeStore()
+        let code = store.claimCode(remark: "是否", style: .zanglanJinyu, badgeMode: .show, bottomText: "", logoMode: .brand)
+        XCTAssertNotNil(code)
+        // 模拟过期：把有效期拨回过去
+        if let index = store.codes.firstIndex(where: { $0.id == code!.id }) {
+            store.codes[index].expiresAt = Date().addingTimeInterval(-3600)
+        }
+        XCTAssertEqual(store.expiredCodes.count, 1)
+        store.extendCode(id: code!.id)
+        XCTAssertEqual(store.expiredCodes.count, 0)
+        XCTAssertTrue(store.codes[0].expiresAt > Date())
+    }
+
+    func testUpdateCodeRemark() {
+        let store = makeStore()
+        let code = store.claimCode(remark: "临时名", style: .baiyuJinsha, badgeMode: .show, bottomText: "", logoMode: .none)
+        store.updateCodeRemark(id: code!.id, remark: "地方g")
+        XCTAssertEqual(store.codes[0].remark, "地方g")
     }
 
     // MARK: - 快捷文字
