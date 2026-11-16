@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // 码池（原工作台，机主 2026-11-16 指示更名重构）：Mock 数据模型
 // 参考：机主提供的 STARLINK MATRIX 码池界面（统计卡/新建二维码三步/四款样式卡）
