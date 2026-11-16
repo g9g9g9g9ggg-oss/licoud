@@ -46,57 +46,21 @@ struct ChatView: View {
     }
 
     var body: some View {
-        Group {
-            if engine.conversation(conversationID) != nil {
-                chatBody
-            } else {
-                ContentUnavailableView("会话不存在", systemImage: "message.badge.exclamationmark")
+        content
+            .toolbar { headerToolbar }
+            .toolbar { profileToolbarButton }
+            .sheet(item: Binding(
+                get: { profileCustomerID.map { ProfileTarget(id: $0) } },
+                set: { profileCustomerID = $0?.id }
+            )) { target in
+                CustomerProfileSheet(customerID: target.id)
             }
-        }
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 3) {
-                    Text(engine.conversation(conversationID)?.peerName ?? "")
-                        .font(.headline)
-                    if let customer, !customer.headerTags.isEmpty {
-                        HStack(spacing: 4) {
-                            ForEach(Array(customer.headerTags.enumerated()), id: \.offset) { index, tag in
-                                Text(tag)
-                                    .font(.system(size: 10, weight: .medium))
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 1)
-                                    .background(Capsule().fill(tagColor(index).opacity(0.18)))
-                                    .foregroundStyle(tagColor(index))
-                            }
-                        }
-                    }
+            .onAppear(perform: onEnter)
+            .onChange(of: draftBox.pendingText) { _, _ in
+                if let pending = draftBox.consumeText() {
+                    draft = pending
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                if customer != nil {
-                    Button("资料") { profileCustomerID = customer!.id }
-                        .font(.subheadline)
-                }
-            }
-        }
-        .sheet(item: Binding(
-            get: { profileCustomerID.map { ProfileTarget(id: $0) } },
-            set: { profileCustomerID = $0?.id }
-        )) { target in
-            CustomerProfileSheet(customerID: target.id)
-        }
-        .onAppear {
-            engine.activeConversationID = conversationID
-            engine.markConversationRead(withID: conversationID)
-            if let pending = draftBox.consumeText() {
-                draft = pending
-            }
-        }
-        .onChange(of: draftBox.pendingText) { _, _ in
-            if let pending = draftBox.consumeText() {
-                draft = pending
-            }
-        }
         .navigationDestination(for: WorkbenchRoute.self) { route in
             switch route {
             case .intentList(let focus):
@@ -108,6 +72,57 @@ struct ChatView: View {
         }
         .navigationDestination(isPresented: $showsIntentList) {
             IntentListView(focus: .text)
+        }
+    }
+
+    // MARK: - 拆分成员（body 类型检查提速）
+
+    @ViewBuilder
+    private var content: some View {
+        if engine.conversation(conversationID) != nil {
+            chatBody
+        } else {
+            ContentUnavailableView("会话不存在", systemImage: "message.badge.exclamationmark")
+        }
+    }
+
+    private func onEnter() {
+        engine.activeConversationID = conversationID
+        engine.markConversationRead(withID: conversationID)
+        if let pending = draftBox.consumeText() {
+            draft = pending
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var headerToolbar: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            VStack(spacing: 3) {
+                Text(engine.conversation(conversationID)?.peerName ?? "")
+                    .font(.headline)
+                if let customer, !customer.headerTags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(Array(customer.headerTags.enumerated()), id: \.offset) { index, tag in
+                            Text(tag)
+                                .font(.system(size: 10, weight: .medium))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(tagColor(index).opacity(0.18)))
+                                .foregroundStyle(tagColor(index))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var profileToolbarButton: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            if customer != nil {
+                Button("资料") { profileCustomerID = customer!.id }
+                    .font(.subheadline)
+            }
         }
     }
 

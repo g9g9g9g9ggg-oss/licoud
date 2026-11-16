@@ -102,8 +102,6 @@ final class StarLinkUITests: XCTestCase {
         let relaunched = launch(fresh: false)
         XCTAssertTrue(relaunched.buttons["登录"].waitForExistence(timeout: 8), "登出后重启不应自动恢复登录")
     }
-}
-
     // MARK: - 提示词触发（关键词回复）全链路实测：➕面板 → 意图列表 → 详情编辑 → 保存
 
     func test05IntentFlowViaPlusPanel() {
@@ -151,3 +149,6 @@ final class StarLinkUITests: XCTestCase {
         XCTAssertTrue(save.waitForExistence(timeout: 4), "保存按钮缺失")
         save.tap()
     }
+
+}
+

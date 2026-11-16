@@ -5,6 +5,7 @@ struct CustomerProfileSheet: View {
     let customerID: String
 
     @Environment(HapticService.self) private var haptics
+    @Environment(\.dismiss) private var dismiss
     private var customerStore = CustomerStore.shared
     private var engine = ChatDemoEngine.shared
 
