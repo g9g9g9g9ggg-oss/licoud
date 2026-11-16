@@ -103,3 +103,51 @@ final class StarLinkUITests: XCTestCase {
         XCTAssertTrue(relaunched.buttons["登录"].waitForExistence(timeout: 8), "登出后重启不应自动恢复登录")
     }
 }
+
+    // MARK: - 提示词触发（关键词回复）全链路实测：➕面板 → 意图列表 → 详情编辑 → 保存
+
+    func test05IntentFlowViaPlusPanel() {
+        let app = launch()
+        login(app, account: "TEST_1001", password: "123456")
+        assertLoggedIn(app)
+
+        // 1) 打开种子会话
+        let seed = app.staticTexts["TEST_张三"]
+        XCTAssertTrue(seed.waitForExistence(timeout: 5), "种子会话未显示")
+        seed.tap()
+
+        // 2) 展开 ➕ 面板
+        let plus = app.buttons["更多功能"]
+        XCTAssertTrue(plus.waitForExistence(timeout: 5), "➕ 按钮未出现")
+        plus.tap()
+        let quickText = app.staticTexts["快捷文字"]
+        XCTAssertTrue(quickText.waitForExistence(timeout: 5), "➕ 面板未展开")
+
+        // 3) 进入关键词回复（意图列表）
+        let intentEntry = app.staticTexts["关键词回复"]
+        XCTAssertTrue(intentEntry.waitForExistence(timeout: 4), "关键词回复入口缺失")
+        intentEntry.tap()
+        XCTAssertTrue(app.navigationBars["提示词触发"].waitForExistence(timeout: 6), "意图列表页未打开")
+
+        // 4) 种子意图「询价」可见且可开关
+        let intentRow = app.staticTexts["询价"]
+        XCTAssertTrue(intentRow.waitForExistence(timeout: 5), "种子意图「询价」未显示")
+        let toggle = app.switches.firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3), "意图开关缺失")
+
+        // 5) 打开意图详情：说法 / 匹配方式 / 文字回复 / 图片回复 / 保存
+        intentRow.tap()
+        XCTAssertTrue(app.navigationBars["询价"].waitForExistence(timeout: 6), "意图详情未打开")
+        XCTAssertTrue(app.staticTexts["说法"].waitForExistence(timeout: 4), "说法区缺失")
+        XCTAssertTrue(app.staticTexts["匹配方式"].waitForExistence(timeout: 4), "匹配方式缺失")
+        XCTAssertTrue(app.staticTexts["文字回复"].waitForExistence(timeout: 4), "文字回复区缺失")
+        XCTAssertTrue(app.staticTexts["图片回复"].waitForExistence(timeout: 4), "图片回复区缺失")
+
+        // 6) 新增说法并保存（真实写入 Store）
+        let addPhrase = app.buttons["新增说法"]
+        XCTAssertTrue(addPhrase.waitForExistence(timeout: 4), "新增说法按钮缺失")
+        addPhrase.tap()
+        let save = app.buttons["保存"]
+        XCTAssertTrue(save.waitForExistence(timeout: 4), "保存按钮缺失")
+        save.tap()
+    }
