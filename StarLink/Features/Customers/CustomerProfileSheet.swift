@@ -9,6 +9,10 @@ struct CustomerProfileSheet: View {
     private var customerStore = CustomerStore.shared
     private var engine = ChatDemoEngine.shared
 
+    init(customerID: String) {
+        self.customerID = customerID
+    }
+
     @State private var name = ""
     @State private var quota = ""
     @State private var regionManual = ""
