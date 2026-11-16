@@ -59,7 +59,7 @@ final class StarLinkUITests: XCTestCase {
         assertLoggedIn(app)
 
         // 四 Tab 依次切换（坐标点击）
-        for tab in ["消息", "客户", "码池", "我的"] {
+        for tab in ["消息", "AI", "码池", "我的"] {
             tapTab(app, tab)
         }
 
