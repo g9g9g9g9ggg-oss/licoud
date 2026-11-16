@@ -9,6 +9,7 @@ import UIKit
 struct ChatView: View {
     let conversationID: String
     private let engine = ChatDemoEngine.shared
+    @Environment(HapticService.self) private var haptics
 
     @State private var draft = ""
     @State private var viewerMessage: ChatMessage?
@@ -79,7 +80,6 @@ struct ChatView: View {
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 0) {
                     if let quote = quotedMessage { quoteStrip(for: quote) }
-                    if plusPanel != nil { plusPanelView }
                     ChatInputBar(
                         draft: $draft,
                         onSend: send,
@@ -340,5 +340,90 @@ struct ChatView: View {
                 onSaveImage: { saveImage(message) }
             )
         }
+    }
+}
+
+/// 大图查看（设计书 6.1）：fullScreenCover + 弹簧缩放拟系统照片转场
+/// 拖拽下滑关闭、双击 1x/2x、捏合缩放 1–4x
+private struct ImageViewerView: View {
+    let data: Data?
+    var onClose: () -> Void
+
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let data, let uiImage = UIImage(data: data) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .scaleEffect(scale)
+                    .offset(offset)
+                    .simultaneousGesture(magnificationGesture)
+                    .gesture(dragGesture)
+                    .onTapGesture(count: 2) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            scale = scale > 1 ? 1 : 2
+                            lastScale = scale
+                            offset = .zero
+                        }
+                    }
+            } else {
+                Image(systemName: "photo")
+                    .font(.largeTitle)
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+
+            VStack {
+                HStack {
+                    Spacer()
+                    Button(action: onClose) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.white.opacity(0.8))
+                    }
+                    .accessibilityLabel("关闭")
+                    .padding(Metrics.spacing16)
+                }
+                Spacer()
+            }
+        }
+    }
+
+    /// 未放大时：下拉超过阈值关闭，否则弹回
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard scale <= 1.01 else { return }
+                offset = value.translation
+            }
+            .onEnded { value in
+                if abs(value.translation.height) > 120 {
+                    onClose()
+                } else {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        offset = .zero
+                    }
+                }
+            }
+    }
+
+    private var magnificationGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                scale = min(max(lastScale * value, 1), 4)
+            }
+            .onEnded { _ in
+                lastScale = scale
+                if scale <= 1.01 {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        offset = .zero
+                    }
+                }
+            }
     }
 }

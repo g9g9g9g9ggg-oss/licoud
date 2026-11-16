@@ -164,6 +164,8 @@ struct ChatBubbleView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("重发")
+        case .recalled:
+            EmptyView()
         }
     }
 }
