@@ -145,7 +145,14 @@ struct WorkbenchView: View {
                                 haptics.fire(.sendSuccess)
                             },
                             onEdit: { editingCode = code },
-                            onMore: { }
+                            onExtend: {
+                                store.extendCode(id: code.id)
+                                haptics.fire(.toggleChanged)
+                            },
+                            onLock: {
+                                store.lockCode(id: code.id)
+                                haptics.fire(.warning)
+                            }
                         )
                         .contextMenu { moreMenu(for: code) }
                     }

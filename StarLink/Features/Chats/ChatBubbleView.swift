@@ -61,7 +61,9 @@ struct ChatBubbleView: View {
         switch message.kind {
         case .text:
             VStack(alignment: .leading, spacing: 6) {
-                if let quoteBlock { quoteBlock }
+                if message.quotedText != nil || message.quotedImageData != nil {
+                    quoteBlock
+                }
                 Text(message.text)
             }
             .padding(.horizontal, Metrics.spacing12)
