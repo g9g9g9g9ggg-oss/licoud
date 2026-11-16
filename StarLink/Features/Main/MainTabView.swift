@@ -38,13 +38,13 @@ struct MainTabView: View {
                 NavigationStack {
                     WorkbenchView()
                 }
-                .tabItem { Label("工作台", systemImage: "square.grid.2x2") }
+                .tabItem { Label("码池", systemImage: "qrcode") }
                 .tag(2)
             } else {
                 NavigationStack {
-                    PlaceholderTabView(title: "工作台", systemImage: "square.grid.2x2", description: "功能建设中")
+                    PlaceholderTabView(title: "码池", systemImage: "qrcode", description: "功能建设中")
                 }
-                .tabItem { Label("工作台", systemImage: "square.grid.2x2") }
+                .tabItem { Label("码池", systemImage: "qrcode") }
                 .tag(2)
             }
 
