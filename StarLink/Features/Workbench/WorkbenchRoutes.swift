@@ -53,27 +53,35 @@ struct IntentListView: View {
                     .listRowBackground(Color.clear)
             }
             ForEach(ordered) { intent in
-                NavigationLink(value: IntentDetailRoute(intentID: intent.id, focus: focus)) {
-                    HStack(spacing: Metrics.spacing8) {
-                        Text(intent.name)
-                            .font(.body)
-                        Text(intent.matchMode.title)
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color(uiColor: .tertiarySystemFill)))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Toggle("", isOn: Binding(
-                            get: { intent.isEnabled },
-                            set: { newValue in
-                                store.toggleIntent(id: intent.id, isEnabled: newValue)
-                                haptics.fire(.toggleChanged)
-                            }
-                        ))
-                        .labelsHidden()
-                        .fixedSize()
+                HStack(spacing: Metrics.spacing8) {
+                    // 导航与开关并排分离：避免 List 行内 Toggle 吞掉整行点击
+                    NavigationLink(value: IntentDetailRoute(intentID: intent.id, focus: focus)) {
+                        HStack(spacing: Metrics.spacing8) {
+                            Text(intent.name)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                            Text(intent.matchMode.title)
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color(uiColor: .tertiarySystemFill)))
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
+                    .buttonStyle(.plain)
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { intent.isEnabled },
+                        set: { newValue in
+                            store.toggleIntent(id: intent.id, isEnabled: newValue)
+                            haptics.fire(.toggleChanged)
+                        }
+                    ))
+                    .labelsHidden()
+                    .fixedSize()
                 }
             }
             .onDelete { indexSet in
