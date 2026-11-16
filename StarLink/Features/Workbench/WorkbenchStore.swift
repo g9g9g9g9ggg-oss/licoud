@@ -2,27 +2,38 @@ import Foundation
 import Observation
 import UIKit
 
-/// 工作台 Mock 存储（@Observable）：演示期数据全部本地持久化（UserDefaults JSON）
-/// 第二期接 workspace 接口族时，把各 CRUD 换成网络调用即可，视图层不动
+/// 码池存储（@Observable）：演示期数据本地持久化（UserDefaults JSON v2）
+/// 「以后对接码池（后端分发链接）」时仅替换本类实现，视图层不动
 @Observable
 final class WorkbenchStore {
     static let shared = WorkbenchStore()
 
-    // MARK: - 状态
+    // MARK: - 码池
+
+    /// 码池全部二维码（含有效中 / 锁定期 / 已失效）
+    var codes: [PoolCode] = []
+    /// 码池余量（对接后端后由码池下发；mock 660 起，领取即扣）
+    private(set) var poolRemaining: Int = 660
+    /// 累计客户（mock）
+    private(set) var totalCustomers: Int = 15
+
+    // MARK: - 快捷素材 / 触发 / 欢迎语
 
     var welcomeText: String = ""
     var welcomeEnabled: Bool = true
-    var qrSlots: [QRSlot] = []
     var quickTexts: [QuickText] = []
     var libraryImages: [LibraryImage] = []
     /// 快捷图片栏（图库的引用子集；点 = 直接发送）
     var quickImages: [LibraryImage] = []
     var intents: [WorkbenchIntent] = []
 
-    /// 快捷图片选中的临时记录（最近一次发送去向，用于轻提示）
+    /// 编辑中的快捷文字（列表「编辑」入口传递）
+    var editingQuickTextID: String?
+
     private(set) var lastQuickSendNote: String?
 
-    private let defaultsKey = "workbench.mock.v1"
+    private let defaultsKey = "workbench.pool.v2"
+    private let legacyKey = "workbench.mock.v1"
     private let defaults: UserDefaults
 
     // MARK: - Init / 持久化
@@ -31,23 +42,49 @@ final class WorkbenchStore {
         self.defaults = defaults
         if let data = defaults.data(forKey: defaultsKey),
            let state = try? JSONDecoder().decode(PersistedState.self, from: data) {
+            codes = state.codes
+            poolRemaining = state.poolRemaining
+            totalCustomers = state.totalCustomers
             welcomeText = state.welcomeText
             welcomeEnabled = state.welcomeEnabled
-            qrSlots = state.qrSlots
             quickTexts = state.quickTexts
             libraryImages = state.libraryImages
             quickImages = state.quickImages
             intents = state.intents
+        } else if let data = defaults.data(forKey: legacyKey),
+                  let legacy = try? JSONDecoder().decode(LegacyState.self, from: data) {
+            // v1（旧工作台双码槽）→ v2（码池）：迁移快捷素材与意图，码槽废弃
+            welcomeText = legacy.welcomeText
+            welcomeEnabled = legacy.welcomeEnabled
+            quickTexts = legacy.quickTexts
+            libraryImages = legacy.libraryImages
+            quickImages = legacy.quickImages
+            intents = legacy.intents
+            seedIfNeeded()
+            persist()
         } else {
             seedIfNeeded()
             persist()
         }
+        purgeExpiredLocks()
+    }
+
+    /// v1 遗留结构（qrSlots 不迁移；JSONDecoder 忽略 JSON 中的多余键）
+    private struct LegacyState: Codable {
+        var welcomeText: String
+        var welcomeEnabled: Bool
+        var quickTexts: [QuickText]
+        var libraryImages: [LibraryImage]
+        var quickImages: [LibraryImage]
+        var intents: [WorkbenchIntent]
     }
 
     private struct PersistedState: Codable {
+        var codes: [PoolCode]
+        var poolRemaining: Int
+        var totalCustomers: Int
         var welcomeText: String
         var welcomeEnabled: Bool
-        var qrSlots: [QRSlot]
         var quickTexts: [QuickText]
         var libraryImages: [LibraryImage]
         var quickImages: [LibraryImage]
@@ -56,9 +93,11 @@ final class WorkbenchStore {
 
     func persist() {
         let state = PersistedState(
+            codes: codes,
+            poolRemaining: poolRemaining,
+            totalCustomers: totalCustomers,
             welcomeText: welcomeText,
             welcomeEnabled: welcomeEnabled,
-            qrSlots: qrSlots,
             quickTexts: quickTexts,
             libraryImages: libraryImages,
             quickImages: quickImages,
@@ -69,37 +108,10 @@ final class WorkbenchStore {
         }
     }
 
-    /// Mock 种子（首次启动）：与聊天种子 TEST_ 张三/李四同一世界观
+    /// Mock 种子（首次启动）：零码空池，与机主参考图 1 的空态一致
     private func seedIfNeeded() {
         if welcomeText.isEmpty {
             welcomeText = "您好，欢迎咨询星链！很高兴为您服务，请问有什么可以帮您？"
-        }
-        if qrSlots.isEmpty {
-            let now = Date()
-            qrSlots = [
-                QRSlot(
-                    id: "online",
-                    title: "在线客服码",
-                    content: QRSlotContent(
-                        url: "https://kf.starlink.demo/online/001",
-                        note: "线上主推码",
-                        expiresAt: now.addingTimeInterval(7 * 24 * 3600),
-                        isDisabled: false,
-                        boundPeerName: "TEST_张三"
-                    )
-                ),
-                QRSlot(
-                    id: "offline",
-                    title: "不在线客服码",
-                    content: QRSlotContent(
-                        url: "https://kf.starlink.demo/offline/001",
-                        note: "非工作时段",
-                        expiresAt: now.addingTimeInterval(30 * 3600),
-                        isDisabled: false,
-                        boundPeerName: "TEST_李四"
-                    )
-                ),
-            ]
         }
         if quickTexts.isEmpty {
             let seeds = [
@@ -140,44 +152,76 @@ final class WorkbenchStore {
         }
     }
 
+    // MARK: - 码池统计
+
+    var activeCodes: [PoolCode] { codes.filter { $0.displayState == .active } }
+    var lockedCodes: [PoolCode] { codes.filter { $0.displayState == .locked } }
+    var expiredCodes: [PoolCode] { codes.filter { $0.displayState == .expired } }
+
+    // MARK: - 码池 CRUD
+
+    /// 从码池领取一张新码（三步向导完成；扣余量）
+    @discardableResult
+    func claimCode(remark: String, style: QRCardStyle, badgeMode: QRBadgeMode, bottomText: String, logoMode: QRLogoMode) -> PoolCode? {
+        guard poolRemaining > 0 else { return nil }
+        let token = UUID().uuidString.prefix(8).lowercased()
+        let code = PoolCode(
+            id: UUID().uuidString,
+            remark: remark,
+            url: "https://pool.starlink.demo/c/\(token)",
+            style: style,
+            badgeMode: badgeMode,
+            bottomText: bottomText,
+            logoMode: logoMode,
+            customers: 0,
+            createdAt: Date(),
+            expiresAt: Date().addingTimeInterval(12 * 3600),  // 参考：有效期剩余 11时39分 ≈ 12h
+            state: .active,
+            lockedUntil: nil
+        )
+        codes.append(code)
+        poolRemaining -= 1
+        persist()
+        return code
+    }
+
+    /// 有效期延长 +1 天
+    func extendCode(id: String) {
+        guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
+        let base = max(codes[index].expiresAt, Date())
+        codes[index].expiresAt = base.addingTimeInterval(24 * 3600)
+        if codes[index].state == .expired { codes[index].state = .active }
+        persist()
+    }
+
+    /// 码名（备注）编辑
+    func updateCodeRemark(id: String, remark: String) {
+        guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
+        codes[index].remark = remark
+        persist()
+    }
+
+    /// 删除 → 锁定期 7 天（不放回余量；锁定期结束自动消失）
+    func lockCode(id: String) {
+        guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
+        codes[index].state = .locked
+        codes[index].lockedUntil = Date().addingTimeInterval(7 * 24 * 3600)
+        persist()
+    }
+
+    /// 锁定期到期清理（读取时顺带执行）
+    private func purgeExpiredLocks() {
+        let now = Date()
+        codes.removeAll { code in
+            code.state == .locked && (code.lockedUntil ?? now) < now
+        }
+    }
+
     // MARK: - 欢迎语
 
     func updateWelcome(text: String, enabled: Bool) {
         welcomeText = text
         welcomeEnabled = enabled
-        persist()
-    }
-
-    // MARK: - 客服码
-
-    /// 「生产」：重新出码（新 URL + 7 天有效期）
-    func produceCode(slotID: String) {
-        guard let index = qrSlots.firstIndex(where: { $0.id == slotID }) else { return }
-        let token = UUID().uuidString.prefix(8)
-        let isOnline = qrSlots[index].id == "online"
-        let bound = qrSlots[index].content?.boundPeerName ?? (isOnline ? "TEST_张三" : "TEST_李四")
-        qrSlots[index].content = QRSlotContent(
-            url: "https://kf.starlink.demo/\(qrSlots[index].id)/\(token)",
-            note: qrSlots[index].content?.note ?? "",
-            expiresAt: Date().addingTimeInterval(7 * 24 * 3600),
-            isDisabled: false,
-            boundPeerName: bound
-        )
-        persist()
-    }
-
-    func updateSlotContent(slotID: String, modify: (inout QRSlotContent) -> Void) {
-        guard let index = qrSlots.firstIndex(where: { $0.id == slotID }),
-              var content = qrSlots[index].content else { return }
-        modify(&content)
-        qrSlots[index].content = content
-        persist()
-    }
-
-    func deleteCode(slotID: String) {
-        if let index = qrSlots.firstIndex(where: { $0.id == slotID }) {
-            qrSlots[index].content = nil
-        }
         persist()
     }
 
@@ -197,7 +241,6 @@ final class WorkbenchStore {
         persist()
     }
 
-    /// 上移 / 下移（长按菜单排序）
     func moveQuickText(id: String, offset: Int) {
         guard let index = quickTexts.firstIndex(where: { $0.id == id }) else { return }
         let target = index + offset
@@ -206,10 +249,22 @@ final class WorkbenchStore {
         persist()
     }
 
-    // MARK: - 本地图库
+    // MARK: - 本地图库 / 快捷图片栏
 
     func libraryImage(named name: String) -> LibraryImage? {
         libraryImages.first { $0.name == name }
+    }
+
+    func addQuickImage(_ image: LibraryImage) {
+        if !quickImages.contains(where: { $0.id == image.id }) {
+            quickImages.append(image)
+            persist()
+        }
+    }
+
+    func removeQuickImage(id: String) {
+        quickImages.removeAll { $0.id == id }
+        persist()
     }
 
     // MARK: - 快捷发送（跨 Tab）
@@ -294,7 +349,7 @@ enum MockImageLibrary {
         }
     }
 
-    /// 程序化占位图：渐变底 + 符号 + 名称（128pt）
+    /// 程序化占位图：渐变底 + 符号 + 名称（256pt）
     private static func render(colors: (UIColor, UIColor), symbol: String, label: String) -> Data {
         let size = CGSize(width: 256, height: 256)
         let renderer = UIGraphicsImageRenderer(size: size)
@@ -309,7 +364,6 @@ enum MockImageLibrary {
             let symbolConfig = UIImage.SymbolConfiguration(pointSize: 64, weight: .medium)
             if let symbol = UIImage(systemName: symbol, withConfiguration: symbolConfig) {
                 let symbolRect = CGRect(x: (size.width - 72) / 2, y: 72, width: 72, height: 72)
-                UIColor.white.withAlphaComponent(0.9).setFill()
                 symbol.withTintColor(.white, renderingMode: .alwaysOriginal)
                     .draw(in: symbolRect)
             }
