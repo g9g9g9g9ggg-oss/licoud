@@ -1,45 +1,43 @@
 import SwiftUI
 import UIKit
 
-/// Tab 3 工作台（设计：《工作台Tab3-iOS界面设计.md》）
-/// 演示期：Mock 数据走 WorkbenchStore（本地持久化）；第二期接 workspace 接口族
+/// Tab 3 码池（机主 2026-11-16 指示：原工作台更名重构，版型借鉴 STARLINK MATRIX 码池）
+/// 结构：说明行 + 新建按钮 → 统计 4 chip → 码卡双列网格（空态）→ 快捷素材与触发
+/// 演示期 Mock 本地持久化；「以后对接码池后端」仅换 WorkbenchStore 实现
 struct WorkbenchView: View {
     @Environment(HapticService.self) private var haptics
     private var store: WorkbenchStore { WorkbenchStore.shared }
 
-    @State private var showsWelcomeEdit = false
+    @State private var showsProdigFlow = false
     @State private var showsQuickTextEditor = false
     @State private var showsImageLibPicker = false
-    @State private var showsBindPicker = false
-    @State private var showsProduceChooser = false
-    @State private var showNoteEditSlotID: String?
-    @State private var confirmAction: ConfirmAction?
+    @State private var editingCode: PoolCode?
+    @State private var showSendHint = false
 
-    struct ConfirmAction: Identifiable {
-        let id = UUID()
-        var title: String
-        var message: String
-        var isDestructive: Bool
-        var run: () -> Void
-    }
+    // 暗色码池配色（机主参考图 1/10）
+    private let pageBackground = Color(red: 0.05, green: 0.07, blue: 0.09)
+    private let accent = Color(red: 0.0, green: 0.78, blue: 0.36)
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Metrics.spacing16) {
-                welcomeCard
-                qrSection
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 14) {
+                headerDescription
+                statChips
+                codesGrid
+                Divider().overlay(Color.white.opacity(0.1))
                 quickTextSection
                 quickImageSection
                 intentSection
             }
-            .padding(.horizontal, Metrics.spacing16)
-            .padding(.vertical, Metrics.spacing16)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("工作台")
+        .background(pageBackground.ignoresSafeArea())
+        .navigationTitle("码池")
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(isPresented: $showsWelcomeEdit) {
-            WelcomeEditView()
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .fullScreenCover(isPresented: $showsProdigFlow) {
+            ProdigCodeFlowView()
         }
         .navigationDestination(isPresented: $showsQuickTextEditor) {
             QuickTextEditorView()
@@ -47,208 +45,200 @@ struct WorkbenchView: View {
         .navigationDestination(isPresented: $showsImageLibPicker) {
             ImageLibPickerView()
         }
-        .navigationDestination(isPresented: $showsBindPicker) {
-            BindCustomerServiceView()
+        .sheet(item: $editingCode) { code in
+            CodeRemarkEditView(code: code)
         }
-        .navigationDestination(item: $showNoteEditSlotID) { slotID in
-            QRNoteEditView(slotID: slotID)
-        }
-        .navigationDestination(for: WorkbenchRoute.self) { route in
-            switch route {
-            case .intentList(let focus):
-                IntentListView(focus: focus)
-            }
-        }
-        .alert(
-            confirmAction?.title ?? "",
-            isPresented: Binding(
-                get: { confirmAction != nil },
-                set: { if !$0 { confirmAction = nil } }
-            )
-        ) {
-            Button(confirmAction?.isDestructive == true ? "确认" : "好", role: confirmAction?.isDestructive == true ? .destructive : nil) {
-                confirmAction?.run()
-                confirmAction = nil
-            }
-            Button("取消", role: .cancel) { confirmAction = nil }
+        .alert("先打开一个会话", isPresented: $showSendHint) {
+            Button("知道了", role: .cancel) {}
         } message: {
-            Text(confirmAction?.message ?? "")
+            Text("快捷发送会进入「消息」Tab 最近会话；请先打开任一会话。")
         }
+        .preferredColorScheme(.dark)
     }
 
-    // MARK: - ① 欢迎语卡片
+    // MARK: - 说明行 + 新建按钮（参考图 10 头部）
 
-    private var welcomeCard: some View {
-        Button {
-            showsWelcomeEdit = true
-        } label: {
-            HStack(spacing: Metrics.spacing12) {
-                Label("欢迎语", systemImage: "text.bubble")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-                Spacer()
-                Text(store.welcomeText.isEmpty ? "未设置" : store.welcomeText)
-                    .font(.footnote)
+    private var headerDescription: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("生成与维护客户入口二维码")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text("有效期内可扫码进入；过期前 1 小时可延长；客户数量实事求是。")
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Toggle("", isOn: Binding(
-                    get: { store.welcomeEnabled },
-                    set: { newValue in
-                        store.updateWelcome(text: store.welcomeText, enabled: newValue)
-                        haptics.fire(.toggleChanged)
+            }
+            Spacer()
+            Button {
+                showsProdigFlow = true
+            } label: {
+                Text("新建二维码")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(accent))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - 统计 4 chip（有效中 / 锁定期 / 已失效 / 码池余量）
+
+    private var statChips: some View {
+        HStack(spacing: 10) {
+            statChip(value: store.activeCodes.count, label: "有效中", color: .green)
+            statChip(value: store.lockedCodes.count, label: "锁定期", color: .yellow)
+            statChip(value: store.expiredCodes.count, label: "已失效", color: .gray)
+            statChip(value: store.poolRemaining, label: "码池余量", color: .white)
+        }
+    }
+
+    private func statChip(value: Int, label: String, color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text("\(value)")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(color)
+                .monospacedDigit()
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(accent.opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    // MARK: - 码卡网格 / 空态（参考图 1 空态 + 图 10 网格）
+
+    private var codesGrid: some View {
+        Group {
+            if store.codes.isEmpty {
+                emptyState
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                    ForEach(store.codes) { code in
+                        PoolCodeCell(
+                            code: code,
+                            onDownload: { downloadCode(code) },
+                            onCopyLink: {
+                                UIPasteboard.general.string = code.url
+                                haptics.fire(.sendSuccess)
+                            },
+                            onEdit: { editingCode = code },
+                            onExtend: {
+                                store.extendCode(id: code.id)
+                                haptics.fire(.toggleChanged)
+                            },
+                            onLock: {
+                                store.lockCode(id: code.id)
+                                haptics.fire(.warning)
+                            }
+                        )
                     }
-                ))
-                .labelsHidden()
-                .fixedSize()
-            }
-            .padding(Metrics.spacing12)
-            .background(
-                RoundedRectangle(cornerRadius: Metrics.cornerRadiusCard, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - ② 客服码区
-
-    private var qrSection: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacing8) {
-            HStack {
-                Text("客服码").font(.subheadline.weight(.medium))
-                Spacer()
-                Button {
-                    showsProduceChooser = true
-                } label: {
-                    Label("生产", systemImage: "plus.circle")
-                        .font(.footnote)
                 }
-                .buttonStyle(.borderless)
-            }
-            HStack(alignment: .top, spacing: Metrics.spacing16) {
-                ForEach(store.qrSlots) { slot in
-                    QRSlotCard(slot: slot) { action in
-                        handleSlotAction(action, slotID: slot.id)
-                    }
-                }
-            }
-        }
-        .alert("生产新码", isPresented: $showsProduceChooser) {
-            ForEach(store.qrSlots) { slot in
-                Button(slot.title) {
-                    store.produceCode(slotID: slot.id)
-                    showNoteEditSlotID = slot.id
-                }
-            }
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("为哪一个客服码重新出码？出码后可编辑备注。")
-        }
-    }
-
-    private func handleSlotAction(_ action: QRSlotCard.Action, slotID: String) {
-        switch action {
-        case .download:
-            guard let content = store.qrSlots.first(where: { $0.id == slotID })?.content,
-                  let image = QRCodeImage.make(string: content.url) else { return }
-            UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-            haptics.fire(.sendSuccess)
-        case .copyURL:
-            if let url = store.qrSlots.first(where: { $0.id == slotID })?.content?.url {
-                UIPasteboard.general.string = url
-                haptics.fire(.sendSuccess)
-            }
-        case .edit:
-            showsBindPicker = true
-        case .toggleDisable:
-            guard let content = store.qrSlots.first(where: { $0.id == slotID })?.content else { return }
-            confirmAction = ConfirmAction(
-                title: content.isDisabled ? "启用客服码" : "停用客服码",
-                message: content.isDisabled ? "启用后扫码将重新接入客服。" : "停用后扫码将提示客服不在线，可随时启用。",
-                isDestructive: false
-            ) {
-                store.updateSlotContent(slotID: slotID) { $0.isDisabled.toggle() }
-                haptics.fire(.toggleChanged)
-            }
-        case .delete:
-            confirmAction = ConfirmAction(
-                title: "删除客服码",
-                message: "删除后需重新生产出码，确定删除？",
-                isDestructive: true
-            ) {
-                store.deleteCode(slotID: slotID)
             }
         }
     }
 
-    // MARK: - ③ 快捷文字栏
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "diamond")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+            Text("还没有二维码")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+            Text("创建第一张获客码，让客户扫码迈出入你的接待台")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button {
+                showsProdigFlow = true
+            } label: {
+                Text("新建二维码")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(accent))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 36)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(0.04))
+        )
+    }
+
+    // MARK: - 快捷素材（保留既有能力，下沉到码池页下半部）
 
     private var quickTextSection: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacing8) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("快捷文字").font(.subheadline.weight(.medium))
+                Text("快捷文字").font(.subheadline.weight(.medium)).foregroundStyle(.white)
                 Text("点 = 填入防误触").font(.caption2).foregroundStyle(.tertiary)
                 Spacer()
                 Button {
+                    store.editingQuickTextID = nil
                     showsQuickTextEditor = true
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(Color.starlinkAccent)
+                        .foregroundStyle(accent)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("新增快捷文字")
             }
-            if store.quickTexts.isEmpty {
-                Text("暂无快捷文字")
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, Metrics.spacing8)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: Metrics.spacing8) {
-                        ForEach(store.quickTexts) { text in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 8) {
+                    ForEach(store.quickTexts) { text in
+                        Button {
+                            if store.fillQuickText(text) {
+                                haptics.fire(.toggleChanged)
+                            } else {
+                                showSendHint = true
+                            }
+                        } label: {
+                            Text(text.title)
+                                .font(.subheadline)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(Color.white.opacity(0.08)))
+                                .foregroundStyle(.white)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
                             Button {
-                                if store.fillQuickText(text) {
-                                    haptics.fire(.toggleChanged)
-                                } else {
-                                    confirmAction = ConfirmAction(
-                                        title: "先打开一个会话",
-                                        message: "点按快捷文字会填入会话输入框；请先在「消息」Tab 打开任一会话。",
-                                        isDestructive: false
-                                    ) {}
-                                }
-                            } label: {
-                                Text(text.title)
-                                    .font(.subheadline)
-                                    .padding(.horizontal, Metrics.spacing12)
-                                    .padding(.vertical, Metrics.spacing8)
-                                    .background(Capsule().fill(Color(uiColor: .secondarySystemGroupedBackground)))
-                            }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                Button { showsQuickTextEditor = true } label: { Label("编辑", systemImage: "pencil") }
-                                Button(role: .destructive) {
-                                    store.deleteQuickText(id: text.id)
-                                } label: { Label("删除", systemImage: "trash") }
-                                Button { store.moveQuickText(id: text.id, offset: -1) } label: { Label("上移", systemImage: "arrow.up") }
-                                Button { store.moveQuickText(id: text.id, offset: 1) } label: { Label("下移", systemImage: "arrow.down") }
-                            }
+                                store.editingQuickTextID = text.id
+                                showsQuickTextEditor = true
+                            } label: { Label("编辑", systemImage: "pencil") }
+                            Button(role: .destructive) {
+                                store.deleteQuickText(id: text.id)
+                            } label: { Label("删除", systemImage: "trash") }
+                            Button { store.moveQuickText(id: text.id, offset: -1) } label: { Label("上移", systemImage: "arrow.up") }
+                            Button { store.moveQuickText(id: text.id, offset: 1) } label: { Label("下移", systemImage: "arrow.down") }
                         }
                     }
-                    .padding(.vertical, 2)
                 }
             }
         }
     }
 
-    // MARK: - ④ 快捷图片栏
-
     private var quickImageSection: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacing8) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("快捷图片").font(.subheadline.weight(.medium))
+                Text("快捷图片").font(.subheadline.weight(.medium)).foregroundStyle(.white)
                 Text("点 = 直接发送").font(.caption2).foregroundStyle(.tertiary)
                 Spacer()
                 Button {
@@ -256,47 +246,34 @@ struct WorkbenchView: View {
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(Color.starlinkAccent)
+                        .foregroundStyle(accent)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("从图库添加快捷图片")
             }
-            if store.quickImages.isEmpty {
-                Text("暂无快捷图片，从图库添加")
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, Metrics.spacing8)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: Metrics.spacing8) {
-                        ForEach(store.quickImages) { image in
-                            Button {
-                                if store.sendQuickImage(image) {
-                                    haptics.fire(.sendSuccess)
-                                } else {
-                                    confirmAction = ConfirmAction(
-                                        title: "先打开一个会话",
-                                        message: "点按快捷图片会直接发送到会话；请先在「消息」Tab 打开任一会话。",
-                                        isDestructive: false
-                                    ) {}
-                                }
-                            } label: {
-                                if let uiImage = UIImage(data: image.imageData) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 96, height: 96)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                }
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 8) {
+                    ForEach(store.quickImages) { image in
+                        Button {
+                            if store.sendQuickImage(image) {
+                                haptics.fire(.sendSuccess)
+                            } else {
+                                showSendHint = true
                             }
-                            .buttonStyle(.plain)
-                            .contextMenu {
-                                Button(role: .destructive) {
-                                    store.quickImages.removeAll { $0.id == image.id }
-                                    store.persist()
-                                } label: { Label("从快捷栏移除", systemImage: "trash") }
+                        } label: {
+                            if let uiImage = UIImage(data: image.imageData) {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 96, height: 96)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             }
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                store.removeQuickImage(id: image.id)
+                            } label: { Label("从快捷栏移除", systemImage: "trash") }
                         }
                     }
                 }
@@ -304,12 +281,10 @@ struct WorkbenchView: View {
         }
     }
 
-    // MARK: - ⑤⑥ 提示词触发板块
-
     private var intentSection: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacing8) {
-            Text("提示词触发").font(.subheadline.weight(.medium))
-            HStack(spacing: Metrics.spacing16) {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("提示词触发").font(.subheadline.weight(.medium)).foregroundStyle(.white)
+            HStack(spacing: 12) {
                 intentEntryCard(.text, title: "提示词触发 · 文字", icon: "text.bubble")
                 intentEntryCard(.image, title: "提示词触发 · 图片", icon: "photo.stack")
             }
@@ -318,21 +293,25 @@ struct WorkbenchView: View {
 
     private func intentEntryCard(_ focus: IntentFocus, title: String, icon: String) -> some View {
         NavigationLink(value: WorkbenchRoute.intentList(focus)) {
-            VStack(alignment: .leading, spacing: Metrics.spacing8) {
+            VStack(alignment: .leading, spacing: 6) {
                 Label(title, systemImage: icon)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.white)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                 Text(enabledCount(for: focus) == 0 ? "未启用意图" : "启用中 \(enabledCount(for: focus)) 个")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
-            .padding(Metrics.spacing12)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .topLeading)
+            .padding(12)
             .background(
-                RoundedRectangle(cornerRadius: Metrics.cornerRadiusCard, style: .continuous)
-                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -347,123 +326,56 @@ struct WorkbenchView: View {
             }
         }.count
     }
+
+    // MARK: - 下载（ImageRenderer 渲染样式卡出图）
+
+    private func downloadCode(_ code: PoolCode) {
+        let card = QRCardView(
+            style: code.style,
+            url: code.url,
+            badgeMode: code.badgeMode,
+            bottomText: code.bottomText,
+            logoMode: code.logoMode
+        )
+        .frame(width: 600)
+        let renderer = ImageRenderer(content: card)
+        renderer.scale = 2
+        guard let image = renderer.uiImage else { return }
+        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+        haptics.fire(.sendSuccess)
+    }
 }
 
-/// 客服码卡（含过期灰显 / 倒计时 / 按钮排）
-struct QRSlotCard: View {
-    enum Action { case download, copyURL, edit, toggleDisable, delete }
+/// 码名编辑 sheet（列表「编辑」）
+struct CodeRemarkEditView: View {
+    let code: PoolCode
+    @Environment(HapticService.self) private var haptics
+    private var store: WorkbenchStore { WorkbenchStore.shared }
+    @Environment(\.dismiss) private var dismiss
 
-    let slot: QRSlot
-    var onAction: (Action) -> Void
+    @State private var remark = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Metrics.spacing8) {
-            Text(slot.title)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.secondary)
-
-            slotBody
-                .frame(maxWidth: .infinity)
-                .frame(height: 150)
-                .background(Color(uiColor: .systemBackground))
-
-            buttonGrid
-        }
-        .padding(Metrics.spacing8)
-        .background(
-            RoundedRectangle(cornerRadius: Metrics.cornerRadiusCard, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-        )
-    }
-
-    @ViewBuilder
-    private var slotBody: some View {
-        if let content = slot.content {
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                let countdown = CountdownText.forExpiry(content.expiresAt, now: context.date)
-                ZStack {
-                    if let qr = QRCodeImage.make(string: content.url) {
-                        Image(uiImage: qr)
-                            .interpolation(.none)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: .infinity)
-                            .opacity(content.isDisabled || countdown.isExpired ? 0.4 : 1)
-                    }
-                    VStack {
-                        Spacer()
-                        HStack(spacing: Metrics.spacing4) {
-                            Circle().fill(Color.starlinkAccent).frame(width: 18, height: 18)
-                                .overlay(Image(systemName: "star.fill").font(.system(size: 9)).foregroundStyle(.white))
-                        }
-                    }
+        NavigationStack {
+            Form {
+                Section("码名（备注）") {
+                    TextField("例如：阿萨", text: $remark)
                 }
             }
-            .overlay(alignment: .bottom) {
-                TimelineView(.periodic(from: .now, by: 60)) { context in
-                    let countdown = CountdownText.forExpiry(content.expiresAt, now: context.date)
-                    Text(countdown.isExpired ? "已过期" : "剩余 \(countdown.text)")
-                        .font(.caption2)
-                        .foregroundStyle(
-                            countdown.isExpired || content.isDisabled
-                                ? Color.secondary
-                                : (countdown.within24h ? Color.orange : Color.secondary)
-                        )
+            .navigationTitle("编辑")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("保存") {
+                        store.updateCodeRemark(id: code.id, remark: remark)
+                        haptics.fire(.sendSuccess)
+                        dismiss()
+                    }
+                    .disabled(remark.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
-                .padding(.bottom, 2)
             }
-        } else {
-            ContentUnavailableView("待生产", systemImage: "qrcode", description: Text("点上方「生产」出码"))
-                .font(.caption2)
+            .onAppear { remark = code.remark }
         }
-    }
-
-    private var buttonGrid: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 62), spacing: Metrics.spacing4)], spacing: Metrics.spacing4) {
-            slotButton("下载图片", "arrow.down.circle") { onAction(.download) }
-                .disabled(slot.content == nil)
-            slotButton("复制网址", "doc.on.doc") { onAction(.copyURL) }
-                .disabled(slot.content == nil)
-            slotButton("编辑", "person.crop.circle.badge.gearshape") { onAction(.edit) }
-                .disabled(slot.content == nil)
-            slotButton(slot.content?.isDisabled == true ? "启用" : "停用",
-                       slot.content?.isDisabled == true ? "play.circle" : "pause.circle") { onAction(.toggleDisable) }
-                .disabled(slot.content == nil)
-            slotButton("删除", "trash", role: .destructive) { onAction(.delete) }
-                .disabled(slot.content == nil)
-        }
-    }
-
-    private func slotButton(_ title: String, _ icon: String, role: ButtonRole? = nil, action: @escaping () -> Void) -> some View {
-        Button(role: role, action: action) {
-            VStack(spacing: 2) {
-                Image(systemName: icon).font(.body)
-                Text(title).font(.caption2)
-            }
-            .frame(maxWidth: .infinity)
-            .foregroundStyle(role == .destructive ? Color.red : Color.primary)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// 倒计时文案：>24h「x天x小时」；≤24h 橙色；过期灰显
-enum CountdownText {
-    struct Result {
-        var text: String
-        var within24h: Bool
-        var isExpired: Bool
-    }
-
-    static func forExpiry(_ date: Date, now: Date = Date()) -> Result {
-        let interval = date.timeIntervalSince(now)
-        guard interval > 0 else { return Result(text: "0", within24h: false, isExpired: true) }
-        let totalHours = Int(interval / 3600)
-        let days = totalHours / 24
-        let hours = totalHours % 24
-        if days > 0 {
-            return Result(text: "\(days)天\(hours)小时", within24h: false, isExpired: false)
-        }
-        return Result(text: "\(hours)小时\(Int(interval.truncatingRemainder(dividingBy: 3600) / 60))分", within24h: true, isExpired: false)
+        .preferredColorScheme(.dark)
     }
 }
