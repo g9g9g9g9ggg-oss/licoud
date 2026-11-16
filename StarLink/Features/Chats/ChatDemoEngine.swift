@@ -229,6 +229,33 @@ final class ChatDemoEngine {
         uiMessages[chatMessage.conversationID] = list
     }
 
+    /// 客户扫码进入：不加好友，直接生成简短会话 + 欢迎语（码池→客户联动）
+    @MainActor
+    func openCustomerConversation(for customer: Customer) {
+        let conversationID = "cust-\(customer.id)"
+        guard storeConversation(withID: conversationID) == nil else { return }
+        let conversation = Conversation(id: conversationID, peerID: customer.id, peerName: customer.name)
+        context.insert(conversation)
+        let wb = WorkbenchStore.shared
+        if wb.welcomeEnabled && !wb.welcomeText.isEmpty {
+            let welcome = Message(
+                id: UUID().uuidString,
+                conversationID: conversationID,
+                senderID: myUserID,
+                kind: .text,
+                text: wb.welcomeText,
+                state: .read,
+                sentAt: Date()
+            )
+            welcome.conversation = conversation
+            context.insert(welcome)
+            conversation.lastMessageText = wb.welcomeText
+            conversation.lastMessageAt = welcome.sentAt
+        }
+        save()
+        syncConversationUI(conversation)
+    }
+
     /// 撤回自己的消息：状态置 recalled（气泡渲染为灰色系统条），本地演示即时生效
     func recallMessage(_ chatMessage: ChatMessage) {
         guard chatMessage.senderID == myUserID,

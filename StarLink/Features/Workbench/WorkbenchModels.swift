@@ -175,7 +175,8 @@ enum PoolCodeState: String, Codable {
 /// 码池二维码（一张获客码）
 struct PoolCode: Codable, Identifiable, Equatable {
     let id: String
-    var remark: String                 // 备注 = 码名（分发识别用，如「阿萨」「地方g」）
+    var remark: String                 // 备注 = 码名（分发识别用，如「阿萨」「地方g」)
+    var codeNo: String                 // 码编号（tag chip 用，如 45646）
     var url: String                    // 码池分发链接（mock；对接后由码池后端下发）
     var style: QRCardStyle
     var badgeMode: QRBadgeMode

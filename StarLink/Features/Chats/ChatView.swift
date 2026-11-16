@@ -21,10 +21,28 @@ struct ChatView: View {
     @State private var plusPanel: PlusPanel?
     @State private var showsWelcomeEditor = false
     @State private var showsIntentList = false
+    @State private var profileCustomerID: String?
+
+    private var peerID: String { engine.conversation(conversationID)?.peerID ?? "" }
+    private var customer: Customer? { CustomerStore.shared.customer(forPeerID: peerID) }
 
     enum PlusPanel: String, Identifiable {
         case main, quickTexts, quickImages
         var id: String { rawValue }
+    }
+
+    /// sheet(item:) 载体
+    struct ProfileTarget: Identifiable {
+        let id: String
+    }
+
+    private func tagColor(_ index: Int) -> Color {
+        switch index {
+        case 0: return .red
+        case 1: return .blue
+        case 2: return .purple
+        default: return .secondary
+        }
     }
 
     var body: some View {
@@ -35,8 +53,38 @@ struct ChatView: View {
                 ContentUnavailableView("会话不存在", systemImage: "message.badge.exclamationmark")
             }
         }
-        .navigationTitle(engine.conversation(conversationID)?.peerName ?? "TEST")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 3) {
+                    Text(engine.conversation(conversationID)?.peerName ?? "")
+                        .font(.headline)
+                    if let customer, !customer.headerTags.isEmpty {
+                        HStack(spacing: 4) {
+                            ForEach(Array(customer.headerTags.enumerated()), id: \.offset) { index, tag in
+                                Text(tag)
+                                    .font(.system(size: 10, weight: .medium))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(tagColor(index).opacity(0.18)))
+                                    .foregroundStyle(tagColor(index))
+                            }
+                        }
+                    }
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                if customer != nil {
+                    Button("资料") { profileCustomerID = customer!.id }
+                        .font(.subheadline)
+                }
+            }
+        }
+        .sheet(item: Binding(
+            get: { profileCustomerID.map { ProfileTarget(id: $0) } },
+            set: { profileCustomerID = $0?.id }
+        )) { target in
+            CustomerProfileSheet(customerID: target.id)
+        }
         .onAppear {
             engine.activeConversationID = conversationID
             engine.markConversationRead(withID: conversationID)

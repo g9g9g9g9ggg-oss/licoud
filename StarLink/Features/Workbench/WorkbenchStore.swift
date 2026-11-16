@@ -14,6 +14,8 @@ final class WorkbenchStore {
     var codes: [PoolCode] = []
     /// 码池余量（对接后端后由码池下发；mock 660 起，领取即扣）
     private(set) var poolRemaining: Int = 660
+    /// 累计领取数（码编号基准）
+    private(set) var totalClaimed: Int = 0
     /// 累计客户（mock）
     private(set) var totalCustomers: Int = 15
 
@@ -44,6 +46,7 @@ final class WorkbenchStore {
            let state = try? JSONDecoder().decode(PersistedState.self, from: data) {
             codes = state.codes
             poolRemaining = state.poolRemaining
+            totalClaimed = state.totalClaimed
             totalCustomers = state.totalCustomers
             welcomeText = state.welcomeText
             welcomeEnabled = state.welcomeEnabled
@@ -82,6 +85,7 @@ final class WorkbenchStore {
     private struct PersistedState: Codable {
         var codes: [PoolCode]
         var poolRemaining: Int
+        var totalClaimed: Int
         var totalCustomers: Int
         var welcomeText: String
         var welcomeEnabled: Bool
@@ -95,6 +99,7 @@ final class WorkbenchStore {
         let state = PersistedState(
             codes: codes,
             poolRemaining: poolRemaining,
+            totalClaimed: totalClaimed,
             totalCustomers: totalCustomers,
             welcomeText: welcomeText,
             welcomeEnabled: welcomeEnabled,
@@ -165,9 +170,11 @@ final class WorkbenchStore {
     func claimCode(remark: String, style: QRCardStyle, badgeMode: QRBadgeMode, bottomText: String, logoMode: QRLogoMode) -> PoolCode? {
         guard poolRemaining > 0 else { return nil }
         let token = UUID().uuidString.prefix(8).lowercased()
+        let codeNo = String(45646 + totalClaimed)
         let code = PoolCode(
             id: UUID().uuidString,
             remark: remark,
+            codeNo: codeNo,
             url: "https://pool.starlink.demo/c/\(token)",
             style: style,
             badgeMode: badgeMode,
@@ -181,6 +188,7 @@ final class WorkbenchStore {
         )
         codes.append(code)
         poolRemaining -= 1
+        totalClaimed += 1
         persist()
         return code
     }
@@ -216,6 +224,20 @@ final class WorkbenchStore {
         guard let index = codes.firstIndex(where: { $0.id == id }) else { return }
         codes[index].isDisabled = disabled
         persist()
+    }
+
+    /// 模拟客户扫码（演示期：对接后端后由码池 webhook 触发）：生成客户 + 简短会话，码客户数 +1
+    @MainActor
+    func simulateScan(code: PoolCode) -> Customer? {
+        guard code.displayState == .active, !code.isDisabled else { return nil }
+        let customer = CustomerStore.shared.customerScans(code: code)
+        ChatDemoEngine.shared.openCustomerConversation(for: customer)
+        if let index = codes.firstIndex(where: { $0.id == code.id }) {
+            codes[index].customers += 1
+            totalCustomers += 1
+            persist()
+        }
+        return customer
     }
 
     /// 删除 → 锁定期 7 天（不放回余量；锁定期结束自动消失）

@@ -76,7 +76,7 @@ struct WorkbenchView: View {
                 Text("生成与维护客户入口二维码")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
-                Text("有效期内可扫码进入；过期前 1 小时可延长；客户数量实事求是。")
+                Text("累计客户 \(store.totalCustomers) · 有效期内可扫码进入；客户扫码后自动进入消息。")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -171,6 +171,13 @@ struct WorkbenchView: View {
         } label: { Label("复制入口链接", systemImage: "doc.on.doc") }
         Button { editingCode = code } label: { Label("编辑信息", systemImage: "pencil") }
         Button { sourceDataCode = code } label: { Label("查看源数据", systemImage: "info.circle") }
+        Button {
+            if let customer = store.simulateScan(code: code) {
+                haptics.fire(.messageReceived)
+                TabRouter.shared.selection = 0
+                _ = customer
+            }
+        } label: { Label("模拟客户扫码（演示）", systemImage: "person.badge.plus") }
         Button { confirmRegenerate(code) } label: { Label("更换新码", systemImage: "arrow.triangle.2.circlepath") }
         Button { confirmToggleDisable(code) } label: {
             Label(

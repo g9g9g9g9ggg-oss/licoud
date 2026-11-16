@@ -39,12 +39,15 @@ struct ChatBubbleView: View {
         }
     }
 
-    /// 长按操作（机主参考圈图）：文字=引用/复制/撤回/删除；图片=引用/保存/撤回/删除
+    /// 长按操作（机主参考圈图）：文字=引用/复制/复制链接/撤回/删除；图片=引用/保存/撤回/删除
     @ViewBuilder
     private var contextMenuItems: some View {
         Button { onQuote() } label: { Label("引用", systemImage: "quote.opening") }
         if message.kind == .text {
             Button { UIPasteboard.general.string = message.text } label: { Label("复制", systemImage: "doc.on.doc") }
+            if let url = URL(string: message.text), url.scheme != nil {
+                Button { UIPasteboard.general.string = url.absoluteString } label: { Label("复制链接", systemImage: "link") }
+            }
         }
         if message.kind == .image, message.imageData != nil {
             Button { onSaveImage() } label: { Label("保存", systemImage: "square.and.arrow.down") }
