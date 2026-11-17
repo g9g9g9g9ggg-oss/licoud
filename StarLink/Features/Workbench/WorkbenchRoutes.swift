@@ -10,12 +10,6 @@ enum WorkbenchRoute: Hashable {
     case intentList(IntentFocus)
 }
 
-/// 意图详情独立路由（避免与列表页共用枚举造成目的页歧义）
-struct IntentDetailRoute: Hashable {
-    let intentID: String
-    let focus: IntentFocus
-}
-
 /// ⑤⑥ 共用意图管理页入口：进入后对应回复类型排前
 struct IntentListView: View {
     let focus: IntentFocus
@@ -24,6 +18,8 @@ struct IntentListView: View {
     @Environment(HapticService.self) private var haptics
     @State private var showsNewIntentAlert = false
     @State private var newIntentName = ""
+    /// 确定性导航：选中意图 → push 详情（不依赖 List NavigationLink 命中）
+    @State private var selectedIntent: SelectedIntent?
 
     /// 焦点回复类型排前；同组内启用中的排前
     private var ordered: [WorkbenchIntent] {
@@ -54,8 +50,9 @@ struct IntentListView: View {
             }
             ForEach(ordered) { intent in
                 HStack(spacing: Metrics.spacing8) {
-                    // 导航与开关并排分离：避免 List 行内 Toggle 吞掉整行点击
-                    NavigationLink(value: IntentDetailRoute(intentID: intent.id, focus: focus)) {
+                    Button {
+                        selectedIntent = SelectedIntent(intentID: intent.id)
+                    } label: {
                         HStack(spacing: Metrics.spacing8) {
                             Text(intent.name)
                                 .font(.body)
@@ -71,7 +68,7 @@ struct IntentListView: View {
                                 .foregroundStyle(.tertiary)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
                     Spacer()
                     Toggle("", isOn: Binding(
                         get: { intent.isEnabled },
@@ -113,10 +110,19 @@ struct IntentListView: View {
         } message: {
             Text("新建后进入意图详情配置说法与回复。")
         }
-        .navigationDestination(for: IntentDetailRoute.self) { route in
-            IntentDetailView(intentID: route.intentID, focus: route.focus)
+        .navigationDestination(item: Binding(
+            get: { selectedIntent },
+            set: { selectedIntent = $0 }
+        )) { target in
+            IntentDetailView(intentID: target.intentID, focus: focus)
         }
     }
+}
+
+/// navigationDestination(item:) 载体
+struct SelectedIntent: Identifiable, Hashable {
+    let id = UUID()
+    let intentID: String
 }
 
 /// 意图详情：说法区（本地攒着、一次保存）+ 文字/图片回复区 + match_mode
