@@ -1,12 +1,16 @@
 import SwiftUI
 import UIKit
 
-/// 客户资料卡（机主参考图：暗色卡 + 核心信息 + 额度/地区/备注逐项确定 + 时间线）
-/// 入口：客户会话右上角「资料」（会话由「模拟客户扫码」生成）
+/// 客户资料卡 v2（机主 2026-11-17 指示）：
+/// · 逐项改动（每次确定只写一项，其余不动）
+/// · 改动记录（谁改的 / 前后值 / 时间）
+/// · 一键复制商务文本（完整·简洁·高档）
+/// · 界面商务原生风（系统深色 + 蓝·金语义色，去花哨）
 struct CustomerProfileSheet: View {
     let customerID: String
 
     @Environment(HapticService.self) private var haptics
+    @Environment(SessionStore.self) private var session
     @Environment(\.dismiss) private var dismiss
     private var store = CustomerStore.shared
     private var engine = ChatDemoEngine.shared
@@ -18,14 +22,11 @@ struct CustomerProfileSheet: View {
     @State private var remark1 = ""
     @State private var remark2 = ""
     @State private var loaded = false
+    @State private var showsCopyToast = false
 
     private var customer: Customer? { store.customer(forPeerID: customerID) }
     private var conversationID: String { "cust-\(customerID)" }
-
-    // 参考图配色：暗底 + 绿强调
-    private let bg = Color(red: 0.06, green: 0.08, blue: 0.11)
-    private let card = Color(red: 0.10, green: 0.13, blue: 0.17)
-    private let accent = Color(red: 0.0, green: 0.78, blue: 0.36)
+    private var editorName: String { session.currentUser?.name ?? "客服" }
 
     init(customerID: String) {
         self.customerID = customerID
@@ -36,196 +37,214 @@ struct CustomerProfileSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     if let customer {
-                        nameCard
+                        headerSummary(customer)
+                        fieldRow(title: "码名", placeholder: "客户名", text: $name, original: customer.name, field: "码名", onCommit: {
+                            engine.renameConversationPeer(peerID: customer.id, to: name)
+                        })
+                        fieldRow(title: "额度", placeholder: "如：2.5万 / 500U / 待定", text: $quota, original: customer.quota ?? "", field: "额度")
+                        fieldRow(title: "地区（手动）", placeholder: "如：广东·深圳", text: $regionManual, original: customer.regionManual ?? "", field: "地区")
+                        fieldRow(title: "备注", placeholder: "备注", text: $remark0, original: remarkOriginal(0), field: "备注")
+                        fieldRow(title: "备注+1", placeholder: "备注+1", text: $remark1, original: remarkOriginal(1), field: "备注+1")
+                        fieldRow(title: "备注+2", placeholder: "备注+2", text: $remark2, original: remarkOriginal(2), field: "备注+2")
                         coreInfoCard(customer)
-                        quotaCard
-                        regionCard
-                        remarksCard
-                        timelineCard(customer)
+                        changeLogCard(customer)
                     } else {
                         ContentUnavailableView("客户不存在", systemImage: "person.crop.circle.badge.xmark")
                     }
                 }
                 .padding(14)
             }
-            .background(bg.ignoresSafeArea())
+            .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("客户资料")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button("完成") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
             }
             .onAppear(perform: load)
-        }
-        .preferredColorScheme(.dark)
-    }
-
-    // MARK: - 码名（逐项确定式：输入 + 绿色确定）
-
-    private var nameCard: some View {
-        HStack(spacing: 8) {
-            TextField("客户名", text: $name)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.white)
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(card)
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(accent.opacity(0.7), lineWidth: 1))
-                )
-            confirmButton("确定") {
-                store.updateProfile(customerID: customerID) { $0.name = name }
+            .overlay(alignment: .bottom) {
+                if showsCopyToast {
+                    toast
+                }
             }
         }
     }
 
-    // MARK: - 核心信息（来源二维码 / 设备 / IP + 地区运营商）
+    // MARK: - 顶部摘要 + 一键复制
+
+    private func headerSummary(_ customer: Customer) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(String(customer.name.suffix(2).prefix(1)))
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 46, height: 46)
+                    .background(Circle().fill(Color(uiColor: .systemBlue)))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(customer.name).font(.headline)
+                    HStack(spacing: 4) {
+                        if customer.isOnline {
+                            Circle().fill(Color.green).frame(width: 7, height: 7)
+                            Text("在线").font(.caption2).foregroundStyle(.secondary)
+                        } else {
+                            Text("离线").font(.caption2).foregroundStyle(.tertiary)
+                        }
+                        Text("· 消息 \(engine.messages(for: conversationID).count)").font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = store.profileCardText(customer, messageCount: engine.messages(for: conversationID).count)
+                    haptics.fire(.sendSuccess)
+                    withAnimation { showsCopyToast = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+                        withAnimation { showsCopyToast = false }
+                    }
+                } label: {
+                    Label("复制资料卡", systemImage: "doc.on.doc.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(Capsule().fill(Color(uiColor: .systemBlue)))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .background(cardShape)
+    }
+
+    // MARK: - 逐项改动行（有改动才亮「确定」）
+
+    private func fieldRow(title: String, placeholder: String, text: Binding<String>, original: String, field: String, onCommit: (() -> Void)? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(.subheadline.weight(.semibold))
+                Spacer()
+                let changed = text.wrappedValue != original && !(text.wrappedValue.isEmpty && original.isEmpty)
+                Button(changed ? "确定改动" : "确定") {
+                    store.updateProfile(
+                        customerID: customerID,
+                        editor: editorName,
+                        field: field,
+                        oldValue: original,
+                        newValue: text.wrappedValue
+                    )
+                    onCommit?()
+                    haptics.fire(.sendSuccess)
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Capsule().fill(changed ? Color(uiColor: .systemBlue) : Color(uiColor: .systemGray3)))
+                .disabled(!changed)
+            }
+            TextField(placeholder, text: text)
+                .padding(11)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                )
+        }
+        .padding(14)
+        .background(cardShape)
+    }
+
+    // MARK: - 核心信息（只读：来源码 / 设备 / IP / 地区·运营商）
 
     private func coreInfoCard(_ customer: Customer) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("核心信息")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(accent)
-            HStack {
-                Text("来源二维码").foregroundStyle(.secondary)
-                Spacer()
+        VStack(alignment: .leading, spacing: 10) {
+            Text("核心信息").font(.subheadline.weight(.semibold))
+            LabeledContent {
                 HStack(spacing: 4) {
                     if let no = customer.sourceCodeNo {
-                        Text(no)
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
+                        Text(no).font(.caption.weight(.semibold))
+                            .padding(.horizontal, 8).padding(.vertical, 3)
                             .background(Capsule().fill(Color.red.opacity(0.85)))
                             .foregroundStyle(.white)
                     }
                     if let remark = customer.sourceCodeRemark {
-                        Text(remark)
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Capsule().fill(Color(red: 0.0, green: 0.55, blue: 0.35)))
+                        Text(remark).font(.caption)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(Color(uiColor: .systemBlue)))
                             .foregroundStyle(.white)
                     }
                 }
-            }
+            } label: { Text("来源二维码").foregroundStyle(.secondary) }
             LabeledContent("设备", value: customer.device)
             LabeledContent("IP", value: customer.ip)
-            if let rc = customer.regionCarrier {
-                LabeledContent("地区·运营商", value: rc)
+            if let carrier = customer.regionCarrier {
+                LabeledContent("地区·运营商", value: carrier)
             }
+            Divider()
+            LabeledContent("进入时间", value: Self.shortTime(customer.enteredAt))
+            LabeledContent("最近消息", value: Self.shortTime(customer.lastActiveAt))
         }
         .font(.subheadline)
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(card)
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35), lineWidth: 1))
-        )
+        .background(cardShape)
     }
 
-    // MARK: - 额度
+    // MARK: - 改动记录（谁改的）
 
-    private var quotaCard: some View {
-        HStack(spacing: 8) {
-            TextField("如：2.5万 / 500U / 待定", text: $quota)
-                .foregroundStyle(.white)
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(card)
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(accent.opacity(0.7), lineWidth: 1))
-                )
-            confirmButton("确定") {
-                store.updateProfile(customerID: customerID) { $0.quota = quota }
-            }
-        }
-    }
-
-    // MARK: - 地区（手动填写）
-
-    private var regionCard: some View {
-        HStack(spacing: 8) {
-            TextField("如：广东·深圳（手动填写）", text: $regionManual)
-                .foregroundStyle(.white)
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(card)
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(accent.opacity(0.7), lineWidth: 1))
-                )
-            confirmButton("确定") {
-                store.updateProfile(customerID: customerID) { $0.regionManual = regionManual }
-            }
-        }
-    }
-
-    // MARK: - 备注 / 备注+1 / 备注+2（逐项确定）
-
-    private var remarksCard: some View {
+    private func changeLogCard(_ customer: Customer) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            remarkField(index: 0, placeholder: "备注")
-            remarkField(index: 1, placeholder: "备注+1")
-            remarkField(index: 2, placeholder: "备注+2")
-        }
-    }
-
-    private func remarkField(index: Int, placeholder: String) -> some View {
-        HStack(spacing: 8) {
-            TextField(placeholder, text: remarkBinding(index))
-                .foregroundStyle(.white)
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(card)
-                        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(accent.opacity(0.7), lineWidth: 1))
-                )
-            confirmButton("确定") {
-                store.updateProfile(customerID: customerID) { c in
-                    c.remarks = [remark0, remark1, remark2]
+            Text("改动记录").font(.subheadline.weight(.semibold))
+            if customer.changeLog.isEmpty {
+                Text("暂无改动").font(.caption).foregroundStyle(.tertiary)
+            } else {
+                ForEach(customer.changeLog) { entry in
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(entry.field).font(.caption.weight(.semibold))
+                            Text("· \(entry.editor)").font(.caption).foregroundStyle(.secondary)
+                            Spacer()
+                            Text(Self.shortTime(entry.date)).font(.caption2).foregroundStyle(.tertiary)
+                        }
+                        Text("\(entry.oldValue.isEmpty ? "空" : entry.oldValue) → \(entry.newValue)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                    Divider()
                 }
             }
         }
-    }
-
-    private func remarkBinding(_ index: Int) -> Binding<String> {
-        switch index {
-        case 0: return $remark0
-        case 1: return $remark1
-        default: return $remark2
-        }
-    }
-
-    // MARK: - 时间线
-
-    private func timelineCard(_ customer: Customer) -> some View {
-        VStack(spacing: 10) {
-            LabeledContent("消息数", value: "\(engine.messages(for: conversationID).count)")
-            Divider().overlay(Color.white.opacity(0.08))
-            LabeledContent("进入时间", value: DateFormatter.localizedString(from: customer.enteredAt, dateStyle: .short, timeStyle: .short))
-            Divider().overlay(Color.white.opacity(0.08))
-            LabeledContent("最近消息", value: DateFormatter.localizedString(from: customer.lastActiveAt, dateStyle: .short, timeStyle: .short))
-        }
-        .font(.subheadline)
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(card)
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.35), lineWidth: 1))
-        )
+        .background(cardShape)
     }
 
     // MARK: - 工具
 
-    private func confirmButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(title) {
-            action()
-            haptics.fire(.sendSuccess)
-        }
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.white)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(accent))
-        .buttonStyle(.plain)
+    private var cardShape: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(Color(uiColor: .secondarySystemGroupedBackground))
+    }
+
+    private var toast: some View {
+        Label("已复制完整资料卡", systemImage: "checkmark.circle.fill")
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Capsule().fill(Color.black.opacity(0.75)))
+            .padding(.bottom, 24)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private func remarkOriginal(_ index: Int) -> String {
+        guard let customer, customer.remarks.indices.contains(index) else { return "" }
+        return customer.remarks[index]
+    }
+
+    private static func shortTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter.string(from: date)
     }
 
     private func load() {
@@ -233,10 +252,9 @@ struct CustomerProfileSheet: View {
         name = customer.name
         quota = customer.quota ?? ""
         regionManual = customer.regionManual ?? ""
-        let remarks = customer.remarks
-        remark0 = remarks.count > 0 ? remarks[0] : ""
-        remark1 = remarks.count > 1 ? remarks[1] : ""
-        remark2 = remarks.count > 2 ? remarks[2] : ""
+        remark0 = remarkOriginal(0)
+        remark1 = remarkOriginal(1)
+        remark2 = remarkOriginal(2)
         loaded = true
     }
 }
