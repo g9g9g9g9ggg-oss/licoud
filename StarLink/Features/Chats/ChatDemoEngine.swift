@@ -256,6 +256,14 @@ final class ChatDemoEngine {
         syncConversationUI(conversation)
     }
 
+    /// 资料卡改「码名」→ 会话名全局同步（列表/头部/资料卡同源）
+    func renameConversationPeer(peerID: String, to newName: String) {
+        guard let conversation = fetchStoreConversation(peerID: peerID) else { return }
+        conversation.peerName = newName
+        save()
+        syncConversationUI(conversation)
+    }
+
     /// 撤回自己的消息：状态置 recalled（气泡渲染为灰色系统条），本地演示即时生效
     func recallMessage(_ chatMessage: ChatMessage) {
         guard chatMessage.senderID == myUserID,
