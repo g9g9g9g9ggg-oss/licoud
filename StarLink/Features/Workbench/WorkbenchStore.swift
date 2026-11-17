@@ -113,8 +113,27 @@ final class WorkbenchStore {
         }
     }
 
-    /// Mock 种子（首次启动）：零码空池，与机主参考图 1 的空态一致
+    /// Mock 种子（首次启动）：预置一张「演示码A」让「模拟客户扫码」立即可达（长按码卡）
     private func seedIfNeeded() {
+        if codes.isEmpty {
+            codes = [
+                PoolCode(
+                    id: UUID().uuidString,
+                    remark: "演示码A",
+                    codeNo: "45646",
+                    url: "https://pool.starlink.demo/c/demo0001",
+                    style: .baiyuJinsha,
+                    badgeMode: .show,
+                    bottomText: "扫码咨询",
+                    logoMode: .brand,
+                    customers: 0,
+                    createdAt: Date(),
+                    expiresAt: Date().addingTimeInterval(11 * 3600 + 40 * 60),
+                    state: .active,
+                    lockedUntil: nil
+                )
+            ]
+        }
         if welcomeText.isEmpty {
             welcomeText = "您好，欢迎咨询星链！很高兴为您服务，请问有什么可以帮您？"
         }
