@@ -57,21 +57,24 @@ final class WorkbenchStoreTests: XCTestCase {
     func testClaimDecrementsPoolAndIncrementsActive() {
         let store = makeStore()
         let before = store.poolRemaining
+        let beforeActive = store.activeCodes.count
         let code = store.claimCode(remark: "地方g", style: .molvJinyu, badgeMode: .show, bottomText: "扫码咨询", logoMode: .brand)
         XCTAssertNotNil(code)
         XCTAssertEqual(store.poolRemaining, before - 1)
-        XCTAssertEqual(store.activeCodes.count, 1)
+        XCTAssertEqual(store.activeCodes.count, beforeActive + 1, "领取后有效码 +1（含种子演示码）")
         XCTAssertEqual(store.codes.first(where: { $0.remark == "地方g" })?.style, .molvJinyu)
         XCTAssertEqual(store.codes.first(where: { $0.remark == "地方g" })?.displayBottomText, "扫码咨询")
     }
 
     func testLockCodeMovesToLockedState() {
         let store = makeStore()
+        let beforeLocked = store.lockedCodes.count
+        let beforeActive = store.activeCodes.count
         let code = store.claimCode(remark: "曼斯", style: .mojinCatEye, badgeMode: .hidden, bottomText: "扫码咨询", logoMode: .none)
         XCTAssertNotNil(code)
         store.lockCode(id: code!.id)
-        XCTAssertEqual(store.lockedCodes.count, 1)
-        XCTAssertEqual(store.activeCodes.count, 0)
+        XCTAssertEqual(store.lockedCodes.count, beforeLocked + 1)
+        XCTAssertEqual(store.activeCodes.count, beforeActive, "锁一枚不改变有效总数（领取+锁定相抵）")
         XCTAssertNotNil(store.codes.first(where: { $0.id == code!.id })?.lockedUntil)
     }
 
