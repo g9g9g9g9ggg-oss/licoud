@@ -26,10 +26,14 @@ final class WorkbenchStoreTests: XCTestCase {
 
     // MARK: - 种子与持久化
 
-    func testSeedStartsWithEmptyPool() {
+    func testSeedStartsWithDemoCode() {
         let store = makeStore()
-        XCTAssertTrue(store.codes.isEmpty, "空池开局（机主参考图 1）")
+        XCTAssertEqual(store.codes.count, 1, "预置演示码A（模拟扫码可达）")
+        XCTAssertEqual(store.codes.first?.remark, "演示码A")
+        XCTAssertEqual(store.codes.first?.codeNo, "45646")
+        XCTAssertEqual(store.codes.first?.displayState, .active)
         XCTAssertEqual(store.poolRemaining, 660)
+        XCTAssertEqual(store.totalCustomers, 15)
         XCTAssertFalse(store.welcomeText.isEmpty)
         XCTAssertFalse(store.quickTexts.isEmpty)
         XCTAssertFalse(store.libraryImages.isEmpty)
@@ -44,8 +48,8 @@ final class WorkbenchStoreTests: XCTestCase {
         let reloaded = makeStore()
         XCTAssertEqual(reloaded.welcomeText, "自定义欢迎语")
         XCTAssertFalse(reloaded.welcomeEnabled)
-        XCTAssertEqual(reloaded.codes.count, 1)
-        XCTAssertEqual(reloaded.codes.first?.remark, "阿萨")
+        XCTAssertEqual(reloaded.codes.count, 2)
+        XCTAssertEqual(reloaded.codes.first(where: { $0.remark == "阿萨" })?.style, .baiyuJinsha)
     }
 
     // MARK: - 码池领取 / 统计 / 锁定期
@@ -57,9 +61,8 @@ final class WorkbenchStoreTests: XCTestCase {
         XCTAssertNotNil(code)
         XCTAssertEqual(store.poolRemaining, before - 1)
         XCTAssertEqual(store.activeCodes.count, 1)
-        XCTAssertEqual(store.codes.first?.remark, "地方g")
-        XCTAssertEqual(store.codes.first?.style, .molvJinyu)
-        XCTAssertEqual(store.codes.first?.displayBottomText, "扫码咨询")
+        XCTAssertEqual(store.codes.first(where: { $0.remark == "地方g" })?.style, .molvJinyu)
+        XCTAssertEqual(store.codes.first(where: { $0.remark == "地方g" })?.displayBottomText, "扫码咨询")
     }
 
     func testLockCodeMovesToLockedState() {
@@ -69,7 +72,7 @@ final class WorkbenchStoreTests: XCTestCase {
         store.lockCode(id: code!.id)
         XCTAssertEqual(store.lockedCodes.count, 1)
         XCTAssertEqual(store.activeCodes.count, 0)
-        XCTAssertNotNil(store.codes[0].lockedUntil)
+        XCTAssertNotNil(store.codes.first(where: { $0.id == code!.id })?.lockedUntil)
     }
 
     func testExtendCodeAfterExpiry() {
@@ -83,15 +86,18 @@ final class WorkbenchStoreTests: XCTestCase {
         XCTAssertEqual(store.expiredCodes.count, 1)
         store.extendCode(id: code!.id)
         XCTAssertEqual(store.expiredCodes.count, 0)
-        XCTAssertTrue(store.codes[0].expiresAt > Date())
+        XCTAssertTrue(store.codes.first(where: { $0.id == code!.id })!.expiresAt > Date())
     }
 
     func testUpdateCodeRemark() {
         let store = makeStore()
         let code = store.claimCode(remark: "临时名", style: .baiyuJinsha, badgeMode: .show, bottomText: "", logoMode: .none)
         store.updateCodeRemark(id: code!.id, remark: "地方g")
-        XCTAssertEqual(store.codes[0].remark, "地方g")
+        XCTAssertEqual(store.codes.first(where: { $0.id == code!.id })?.remark, "地方g")
     }
+
+    // MARK: - 模拟扫码（客户体系主链路）
+
 
     // MARK: - 快捷文字
 
